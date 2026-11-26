@@ -382,15 +382,6 @@
         /// <summary>设置项：分辨率占位（装配期定宽用；刷新时被实际 "宽×高" 覆写）。</summary>
         public const string SettingsOptionResolutionPlaceholder = "0000×0000";
 
-        /// <summary>设置项：渲染风格（像素化渲染链二选一；详见 docs/技术/渲染/管线/双风格切换.md）。</summary>
-        public const string SettingsFieldRenderStyle = "渲染风格";
-
-        /// <summary>渲染风格：单元着色线（G-Buffer + 连通域 + 低分辨率着色，现役默认）。</summary>
-        public const string SettingsOptionRenderStyleCellShade = "单元";
-
-        /// <summary>渲染风格：屏后描边线（全分辨率着色 + 屏幕空间描边/锐利上采样）。</summary>
-        public const string SettingsOptionRenderStylePostLine = "屏后";
-
         /// <summary>设置分组：音频（theme separator_label 蓝字分组线）。</summary>
         public const string SettingsGroupAudio = "音频";
 

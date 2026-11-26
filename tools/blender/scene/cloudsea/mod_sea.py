@@ -2,34 +2,33 @@
 """cloudsea/mod_sea.py —— 海水/海床/海面大平面分件（中央精细浅海 + 延伸到画面外的大海）。
 
 【内容（对象清单）】
-    · Cloud_Sea_Bed       海床：中央 X[-19,19] Y[-14,14] 放海草/岩/珊瑚/鱼群，海床细节
-                          网格扩到 X[-80,80] Y[-80,80]（脊/洼交替沙丘，脊 -2.28、洼 -3.16，
-                          外缘 1.2m 收到水底 -3.2）；细节网格外再铺一圈 Cloud_SeabedDeep
-                          深海底板到 ±240 —— 镜头可见地面足迹半径 ≈43m，画面里看不到
-                          海床/水面的矩形切边。无四面水壁、无底封口。
+    · Cloud_Sea_Bed       海床：水面 -0.4 之下约 2.2 m 的「基本等深」海底——沙脊顶 -2.25、
+                          洼底 -3.05，多层尺度的沙丘起伏 + 礁丘/岩丘；可视区是细网格
+                          （BED_FINE 格距），向外逐格放大铺到 ±80；细节网格外再铺一圈
+                          Cloud_SeabedDeep 深海底板到 ±240 —— 画面里看不到海床/水面的
+                          矩形切边。无海岸、无四面水壁、无底封口。
     · Cloud_Sea_Surface   水面：中央同范围细节起伏（z≈-0.4 死亡线），外圈平水面到 ±240；
                           两层在细节网格边界同高（-0.4），接缝在画面外。
-    · Cloud_Sea_Weeds     海草床：10 锚点 × 6-10 株（每株 4-6 片带状叶共根，顺水流方向弯，
-                          双面薄片）；前排（+X/-Y 附近）另有 3 丛 1.2-1.8m 海草树
-                          （9-12 片宽叶），前景读得到；根部小石堆。
+    · Cloud_Sea_Weeds     海草床 × 海草树（每株多片带状叶共根，顺水流方向弯，双面薄片，
+                          整株没入水下）；叶片带「离根高度比」顶点辅助量（落成 UV 的 U），
+                          Unity 侧 shader 据此做根部固定的摆动；根部小石堆。
     · Cloud_Sea_Rocks     岩簇：8 处不规则岩块组（半埋）+ 周边碎石；前排 2 组 2-2.5m
                           岩拱/叠岩（石柱+横梁+叠石），前场读得出。
-    · Cloud_Sea_Coral     珊瑚 12 处（每处 2 株枝状 + 扇/管/脑随机 1 株 + 1 团块，
-                          粉/紫/橙/青/骨白/原橙六色档）+ 贝壳 / 14 只海星点缀。
+    · Cloud_Sea_Coral     珊瑚礁（主礁各组一整套桌/扇/枝/管/脑/海葵，卫星礁 1-2 株点缀，
+                          粉/紫/橙/青/骨白/原橙六色档）+ 草床边贝壳。
     · Cloud_Sea_Debris    水底细节：散布小石块、碎石滩、贝壳、鱼骨（无人造垃圾）。
-    · Cloud_FishSchool_0..9   鱼群 10 群（公共库 5 锚点 + 本件新增 5 群，分布到主云台下方
-                          与两侧前场）：每群独立对象、原点 = 群中心（Unity 整体游动），
-                          12-16 条/群、鱼体 0.53-0.87m，群内松紧各不同（紧=梭形纵列，
-                          松=云团）；16 三角面/条（椭球身 + 双面尾/背/腹鳍）。
     · Cloud_Bubbles_0..2      气泡柱：海床升到水面附近的成串小球，原点 = 柱底。
 
 【朝向纪律】像素着色路径是 Cull Back：海床/水面是开放薄面，绕序按 +Z 朝上建模，
   出口禁 recalc（见 kit_common.Mesher.to_object 的 recalc_normals 说明）；侧壁只修
-  轴对齐竖面。海草叶与鱼鳍直接建双面（Unity 侧不用改任何东西）。
+  轴对齐竖面。海草叶直接建双面。
+
+【鱼群与活物不在这里】鱼群 / 大鱼 / 水母 / 蟹 / 海星等活动物在 mod_creatures.py；
+本件只管海水的静止部分（海床高度场 bed_z 是活物定深与贴底的单源）。
 
 【纪律】材质只用 Cloud_* 自然物槽（零贴图零碰撞）；固定种子重跑同图；主题红线：
-  只有海水/海床/岩石/海草/珊瑚/鱼群/气泡/贝壳等自然物，无人造物。
-  海床/水面细节网格按 1.2-1.5m 格距取舍，外圈只铺四条大带，不追高模。
+  只有海水/海床/岩石/海草/珊瑚/气泡/贝壳等自然物，无人造物。
+  海床网格中心密、外圈疏（见 _build_bed），外圈只铺四条大带，不追高模。
 """
 
 import math
@@ -42,11 +41,21 @@ TAU = math.tau
 SEED = 20261109
 
 # ---- 水域与水位（Blender 本地系，对齐 cloudsea_common 口径）----
-#: 精细内容（海草/岩/珊瑚/鱼群/碎石）的摆放范围。
+#: 精细内容（海草/岩/珊瑚/碎石）的摆放范围。
 X0, X1 = -19.0, 19.0
 Y0, Y1 = -14.0, 14.0
 TOP = H.SEA_TOP_Z        # -0.4 水面 = 现役死亡线
-BOT = H.SEA_BOTTOM_Z     # -3.2 水底
+BOT = H.SEA_BOTTOM_Z     # -3.2 深海底板
+
+#: 海床高度带（Blender 本地 z）：沙脊顶 / 洼底，水面下 1.85–2.65 m。「基本等深」指没有
+#: 海岸式的浅滩→深水渐变——整片海床沉在水面下两米上下，起伏只负责层次。
+BED_RIDGE_Z = -2.25
+BED_TROUGH_Z = -3.05
+
+#: 海床网格：可视区等距细网格的格距与半宽；之外每格按 BED_GROWTH 逐格放大铺到细节网格外缘。
+BED_FINE = 0.22
+BED_CORE_HALF = 25.0
+BED_GROWTH = 1.05
 
 #: 海床/水面**细节网格**的覆盖范围。镜头可见地面足迹（ortho 11.25 / 30° 俯角）约
 #: 40×45m；相机聚焦高处平台时，画面中心落水点还会向远处偏 ~13m，最远可见海面点到
@@ -76,31 +85,8 @@ ORANGE = "Cloud_CoralOrange"
 TEAL = "Cloud_CoralTeal"
 BONE = "Cloud_Bone"
 BUBBLE = "Cloud_Bubble"
-FISH_ORANGE = "Cloud_FishOrange"   # 鱼专属色卡（配背光边缘光，见 style_tokens 注）
-FISH_YELLOW = "Cloud_FishYellow"
 WHITE = "Cloud_White"
 BLUE = "Cloud_Blue"
-
-#: 本件鱼群锚点（前 5 = cloudsea_common.FISH_SCHOOLS；+5 群分布到主云台两侧与前场）
-#: 2026-11-21 观感反馈：群数 8→10、前场再补两群，鱼群要「一眼看得见」。
-MOD_FISH_SCHOOLS = list(H.FISH_SCHOOLS) + [
-    (14.0, -8.5, -1.5, 2.6),     # 主云台东南（近 +X 侧）
-    (16.0, 9.0, -2.0, 2.4),      # 东南前角（front34 主看位）
-    (-6.5, 8.0, -1.4, 2.2),      # 主云台西南
-    (9.0, -12.0, -1.6, 2.4),     # 南前场
-    (-12.0, 9.5, -1.7, 2.2),     # 西北前场
-    (12.0, 12.0, -0.9, 1.5),     # 前景主礁上方
-    (18.5, 5.0, -0.9, 1.5),      # 右侧主礁上方
-]
-#: 群主色（银蓝/浅蓝/珊瑚橙）/ 游向（弧度）/ 群内松紧（0 紧=纵列 → 1 松=云团）
-#: 鱼群主色：暖色为主（CORAL/YELLOW 与青色水强对比；BLUE/WHITE 只留少量杂色个体——
-#: 首轮实拍蓝鱼与水色融为一体，创始人裁定换对比色卡）
-# 2026-11-22 浅海 σ 吸收（红通道被吃）：主色改黄/白/少量橙——黄白在青水里读得出来，
-# 橙只做点缀（近水面群）。
-SCHOOL_DOM = [FISH_YELLOW, BONE, FISH_YELLOW, FISH_ORANGE, BONE, FISH_YELLOW,
-              BONE, FISH_YELLOW, FISH_ORANGE, BONE, FISH_YELLOW, BONE]
-SCHOOL_HEAD = [0.6, 2.4, 4.2, 1.3, 5.1, 0.2, 3.6, 4.9, 2.9, 1.1, 0.9, 3.9]
-SCHOOL_TIGHT = [0.55, 0.4, 0.5, 0.8, 0.35, 0.6, 0.3, 0.75, 0.55, 0.45, 0.5, 0.45]
 
 #: 海草床锚点（前 6 = cloudsea_common.SEAWEED_BEDS；+4 处靠 +X/+Y 前场）
 MOD_SEAWEED_BEDS = list(H.SEAWEED_BEDS) + [
@@ -146,13 +132,6 @@ CORAL_SPOTS = [
     (-2.0, -6.0, BONE),
 ]
 
-#: 海星（x, y, 材质）——数量 8→14、四色、放大 1.6×（近景读得到五角轮廓）
-STAR_SPOTS = [(5.5, -1.5, CORAL), (-8.5, 6.0, BONE), (14.8, 12.4, PINK),
-              (17.9, -1.6, BONE), (-3.5, 12.8, ORANGE), (16.9, 13.0, BONE),
-              (18.0, 5.4, CORAL), (10.5, 13.1, BONE), (13.0, 1.2, PINK),
-              (16.8, -5.2, PURPLE), (7.2, 11.8, ORANGE), (1.8, -9.5, PINK),
-              (11.8, -11.2, TEAL), (-10.5, 12.0, ORANGE)]
-
 #: 前场碎石滩（+X / +Y 两侧透过水面读得到）
 GRAVEL_PATCHES = [(17.6, 2.0), (17.4, -10.5), (6.0, 12.6), (-6.5, 12.5),
                   (17.6, 11.6), (12.2, 12.9), (3.2, 12.7)]
@@ -173,50 +152,50 @@ def _rim_f(x, y, margin=1.2):
     return f * f * (3.0 - 2.0 * f)
 
 
-def _ridge_valley(x, y):
-    """沙丘形态场：h(t) 软夹三档（脊 / 坡 / 洼）——脊顶平台化、洼底持平，坡面陡。
-
-    2026-11-21 观感反馈「水底弄得再不平整一些」：落差 0.88 → 0.94 m、整体抬高
-    0.2 m（水深 1.55-2.5 m），另加一项高频起伏（波长 ~2.4 m）——透水读得出丘壑。
-    值域 [-2.95, -2.01]：脊 -2.01、洼 -2.95。Unity 侧 `CloudSeaWaterLab` 逐行同步。
-    """
-    t = 0.5 + 0.26 * math.sin(x * 0.17 + 0.4) * math.cos(y * 0.23 - 0.8) \
-        + 0.16 * math.sin(x * 0.37 - y * 0.31 + 2.0) \
-        + 0.10 * math.sin(x * 0.74 + y * 0.58 + 0.9) \
+def _dune_field(x, y):
+    """沙丘形态场：五个尺度的正弦叠加（约 37 / 27 / 13 / 6.7 / 4.3 m 波长），值域 [0, 1]。"""
+    t = 0.5 + 0.24 * math.sin(x * 0.17 + 0.4) * math.cos(y * 0.23 - 0.8) \
+        + 0.18 * math.sin(x * 0.37 - y * 0.31 + 2.0) \
+        + 0.12 * math.sin(x * 0.74 + y * 0.58 + 0.9) \
         + 0.07 * math.sin(x * 1.15 - y * 0.9 + 1.6) \
         + 0.05 * math.sin(x * 2.30 + y * 1.90 + 0.3)
-    t = min(1.0, max(0.0, t))
-    # 2026-11-22 浅海化：水面 −0.4，海床抬到 −1.15..−0.75（水深 0.35–0.75 m）。
-    # 原作 σ 是按 0.1–0.6 m 浅滩标定的；2 m 水柱会把红通道吸没（r20 实拍深海军蓝）。
-    # 要拿 Demo 的水色，必须让水变浅——不是改 shader。
-    if t < 0.36:                                # 洼地（深色海床）
+    return min(1.0, max(0.0, t))
+
+
+def _ridge_valley(x, y):
+    """海床大形态：沙丘场软夹三档（脊 / 坡 / 洼）——脊顶平台化、洼底持平、坡面陡，
+    俯视下读成一块块有边界的沙脊与洼地，而不是均匀的波浪面。
+
+    值域 [BED_TROUGH_Z, BED_RIDGE_Z]：洼底 → 坡脚 0.14 m、坡脚 → 脊脚 0.42 m、脊脚 → 脊顶 0.24 m。
+    """
+    t = _dune_field(x, y)
+    if t < 0.36:                                # 洼地（洼底持平）
         u = t / 0.36
-        return -1.15 + 0.08 * (u * u * (3.0 - 2.0 * u))
+        return BED_TROUGH_Z + 0.14 * (u * u * (3.0 - 2.0 * u))
     if t < 0.62:                                # 陡坡
         u = (t - 0.36) / 0.26
-        return -1.07 + 0.26 * (u * u * (3.0 - 2.0 * u))
-    u = min(1.0, (t - 0.62) / 0.38)             # 沙脊（白沙，顶部平台化）
-    return -0.81 + 0.06 * math.sin(u * math.pi / 2)
+        return BED_TROUGH_Z + 0.14 + 0.42 * (u * u * (3.0 - 2.0 * u))
+    u = min(1.0, (t - 0.62) / 0.38)             # 沙脊（顶部平台化）
+    return BED_RIDGE_Z - 0.24 + 0.24 * math.sin(u * math.pi / 2)
 
 
-#: 沙纹振幅/波长（沙面细纹：3-4 m 波长的规则起伏，透水读成沙面纹路）
-SAND_RIPPLE_AMP = 0.025
+#: 沙纹（沙面的规则细起伏）。像素尺度的沙纹条纹由 Unity 侧海床 shader 画，几何只留一点缓起伏。
+SAND_RIPPLE_AMP = 0.035
 
 
 def bed_z(x, y):
-    """海床高度：沙丘场 + 沙纹 + 岩簇丘包 + 珊瑚丘，细节网格四边 1.2m 平滑收到水底。
+    """海床高度：沙丘场 + 沙纹缓起伏 + 岩簇丘包 + 珊瑚丘，细节网格四边 1.2m 平滑收到深海底板。
 
-    珊瑚丘（2026-11-21 新增）：每处珊瑚锚点脚下抬 0.28 m、半径 0.85 m 的小丘包——
-    珊瑚坐丘不插平沙，丘影/丘脊让水底读起来有高低。Unity 侧逐行同步。
+    丘包让礁石和岩簇坐在小高地上（半埋件不插平沙），丘脊/丘影给水底增加高低层次。
     """
     h = _ridge_valley(x, y)
     h += SAND_RIPPLE_AMP * math.sin(x * 1.65 + 0.9 * math.sin(y * 0.35)) * math.cos(y * 1.35 + 0.4)
     for cx, cy, s in MOD_ROCK_CLUSTERS:
         d2 = ((x - cx) ** 2 + (y - cy) ** 2) / max(0.5, s * s * 1.6)
-        h += 0.18 * math.exp(-d2)
+        h += 0.22 * math.exp(-d2)
     for cx, cy, _mat in CORAL_SPOTS:
-        d2 = ((x - cx) ** 2 + (y - cy) ** 2) / (0.85 * 0.85)
-        h += 0.16 * math.exp(-d2)
+        d2 = ((x - cx) ** 2 + (y - cy) ** 2) / (1.1 * 1.1)
+        h += 0.22 * math.exp(-d2)
     return BOT + (h - BOT) * _rim_f(x, y)
 
 
@@ -251,6 +230,10 @@ def _orient_faces(obj):
     全被当成“底面”压成朝下；像素路径 Cull Back 一裁，海床整层消失、水下岩石与鱼
     顶面变黑块。水平面的朝向由建模绕序负责（海床/水面 +Z 朝上），这里只修侧壁。
     同位置出现 ± 成对法线的面是刻意双面薄片，跳过不校；斜面（坡/球）不动。
+
+    【前提：对象原点在形体内部】「背离原点 = 朝外」只对独体件成立。由多个独立小体组成、
+    原点在群中心的对象（mod_creatures 的鱼群）不能过这道校正——朝着群中心那一侧的面会被
+    当成「朝内的侧壁」翻掉。活动物因此不走这里，它们的每个图元都是闭合体，收工时整体重算法线。
     """
     me = obj.data
     groups = {}
@@ -366,16 +349,29 @@ def _flat_frame(m, z, mat, seg_x=16, seg_y=8):
     m.add(verts, faces, mat=mat, smooth=False)
 
 
+def _graded_axis(fine, core_half, growth, limit):
+    """中心等距、向外逐格放大的对称坐标表：|x| ≤ core_half 格距 fine，之后每格 × growth
+    直到 limit——可视区密、远景疏，一张网格无接缝。"""
+    half = [0.0]
+    x, step = 0.0, fine
+    while x < core_half - 1e-9:
+        x = min(core_half, x + step)
+        half.append(x)
+    while x < limit - 1e-9:
+        step *= growth
+        x = min(limit, x + step)
+        half.append(x)
+    return [-v for v in reversed(half[1:])] + half
+
+
 def _build_bed(m):
-    # 格距 1.6m：沙丘主频（5.5-8.5m 波长）仍有 3-5 个采样；外缘收边在画面外。
-    nx, ny = 100, 100
-    verts = []
-    for j in range(ny + 1):
-        y = BY0 + (BY1 - BY0) * j / ny
-        for i in range(nx + 1):
-            x = BX0 + (BX1 - BX0) * i / nx
-            verts.append((x, y, bed_z(x, y)))
-    vid = lambda i, j: j * (nx + 1) + i
+    # 可视区（镜头足迹 ≈ ±22 m，聚焦高处平台时再偏 ~13 m）格距 BED_FINE：沙丘最短波长 ~2 m
+    # 仍有近 10 个采样、礁丘（σ ≈ 1.1 m）也有 10 个——起伏不再被采样抹平（旧版 1.6 m 格距）。
+    xs = _graded_axis(BED_FINE, BED_CORE_HALF, BED_GROWTH, BX1)
+    ys = _graded_axis(BED_FINE, BED_CORE_HALF, BED_GROWTH, BY1)
+    stride = len(xs)
+    verts = [(x, y, bed_z(x, y)) for y in ys for x in xs]
+    vid = lambda i, j: j * stride + i
     faces = []
 
     def _orient(tri):
@@ -384,12 +380,9 @@ def _build_bed(m):
         crz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
         return tri if crz >= 0.0 else (tri[0], tri[2], tri[1])
 
-    # 【海床只用一种沙色（2026-11-18）】旧实现按格高/坡把洼底涂成深色海床；透过
-    # 0.6 alpha 的水面，这些色块读成一块块硬边多边形（像水底破洞/碎玻璃），比沙丘
-    # 本身抢眼。现在整片海床统一 Cloud_Sand，起伏全靠高度场的平滑光照；深色只留给
-    # 岩石/海草/鱼群等实物。
-    for j in range(ny):
-        for i in range(nx):
+    # 海床只用一种沙色：深浅 / 沙纹 / 色斑由 Unity 侧海床 shader 按世界坐标画（网格不带 UV/顶点色）。
+    for j in range(len(ys) - 1):
+        for i in range(stride - 1):
             a, b, c, d = vid(i, j), vid(i + 1, j), vid(i + 1, j + 1), vid(i, j + 1)
             diag = (i + j) % 2 == 0
             tris = ((a, b, c), (a, c, d)) if diag else ((a, b, d), (b, c, d))
@@ -397,6 +390,9 @@ def _build_bed(m):
                 faces.append(_orient(tri))
     m.add(verts, faces, mat=SAND, smooth=True)
     _flat_frame(m, BOT, DEEP_BED)                        # 细节网格外的深海底板
+    print("[mod_sea] 海床网格 %d×%d 格（可视区格距 %.2f m，向外放大到 %.2f m），%d 顶点 / %d 面"
+          % (stride - 1, len(ys) - 1, BED_FINE, xs[-1] - xs[-2], len(verts), len(faces)),
+          flush=True)
 
 
 def _build_surface(m):
@@ -424,6 +420,7 @@ def _frond(m, rng, x, y, base_z, top_z, lean, w0, mat, double_sided=True):
     """一片海草叶：5 截面收窄 + 顶梢；顺 lean 方向主弯 + 轻微 S 摆，叶面随高度微扭。
 
     double_sided=True 时叠一份反向绕序（像素路径 Cull Back，薄片两面都要可见）。9 或 18 三角面。
+    每个顶点带「离根高度比」辅助量（根部 0 → 顶梢 1）：Unity 侧海草 shader 用它做根部固定的摆动。
     """
     L = top_z - base_z
     amp = rng.uniform(0.10, 0.22) * L
@@ -433,6 +430,7 @@ def _frond(m, rng, x, y, base_z, top_z, lean, w0, mat, double_sided=True):
     twist = rng.uniform(-0.6, 0.6)
     cl, sl = math.cos(lean), math.sin(lean)
     verts = []
+    aux = []
     for t, w in zip((0.0, 0.22, 0.44, 0.64, 0.84), (1.0, 0.92, 0.74, 0.48, 0.22)):
         off = amp * t * t + wig * math.sin(t * 5.0 + ph) * t
         sx, sy, sz = x + cl * off, y + sl * off, base_z + L * t
@@ -441,8 +439,10 @@ def _frond(m, rng, x, y, base_z, top_z, lean, w0, mat, double_sided=True):
         dx, dy = math.cos(pa) * hw, math.sin(pa) * hw
         verts.append((sx - dx, sy - dy, sz))
         verts.append((sx + dx, sy + dy, sz))
+        aux += [t, t]
     off = amp + wig * math.sin(5.0 + ph)
     verts.append((x + cl * off, y + sl * off, top_z))
+    aux.append(1.0)
     faces = [(2 * k, 2 * k + 1, 2 * k + 3, 2 * k + 2) for k in range(4)]
     faces.append((8, 9, 10))
     if double_sided:
@@ -450,24 +450,20 @@ def _frond(m, rng, x, y, base_z, top_z, lean, w0, mat, double_sided=True):
         # 复用同组下标的反面会被当退化面删掉——必须用独立顶点）
         base2 = len(verts)
         verts = verts + verts[:]
+        aux = aux + aux[:]
         faces += [tuple(base2 + i for i in f[::-1]) for f in faces]
-    m.add(verts, faces, mat=mat)
+    m.add(verts, faces, mat=mat, aux=aux)
 
 
 def _plant(m, rng, x, y, current):
-    """一株海草：4-6 片叶共根，**整株没入水下**（顶 ≤ 水面 −0.12）；根部 2-3 颗小石。
-
-    2026-11-23 修正：旧式 `max(base + 0.7, …)` 会把草顶推到水面以上（基床 −0.8 时顶
-    到 −0.1），带水成片里只剩露出水面的草尖——创始人「水草都只露个头」的实因。
-    现在顶高同时受「株高 ≤0.55 m」与「水面帽 −0.52」夹住，0.25–0.55 m 全株在水下。
-    """
+    """一株海草：4-6 片叶共根，株高 0.35–0.75 m，**整株没入水下**（顶 ≤ 水面 −0.35）；根部 2-3 颗小石。"""
     base = bed_z(x, y)
-    top_max = min(base + 0.55, -0.52)
+    height = min(rng.uniform(0.35, 0.75), TOP - 0.35 - base)
     main = WEED if rng.random() < 0.72 else PLANT
     alt = PLANT if main == WEED else WEED
     for _ in range(rng.randint(4, 6)):
         lean = current + rng.uniform(-0.9, 0.9)
-        top = top_max if rng.random() < 0.4 else base + (top_max - base) * rng.uniform(0.55, 0.9)
+        top = base + height * (1.0 if rng.random() < 0.4 else rng.uniform(0.55, 0.9))
         _frond(m, rng, x + rng.uniform(-0.06, 0.06), y + rng.uniform(-0.06, 0.06),
                base - 0.03, top, lean, rng.uniform(0.13, 0.20),
                main if rng.random() < 0.8 else alt)
@@ -477,20 +473,17 @@ def _plant(m, rng, x, y, current):
 
 
 def _kelp(m, rng, x, y):
-    """海草树：9-12 片宽叶共根，冠高 0.3–0.62 m 且**整株没入水下**（顶 ≤ −0.52）。
-
-    浅海化后水柱只有 0.35–0.75 m，旧式 1.2–1.8 m 冠高全被 `min(-0.62, …)` 压成
-    0.18–0.3 m 的小丛；现在按水柱给足 0.3–0.62 m，宽叶 0.20–0.30 m，读成水下灌木。
-    """
+    """海草树：10-14 片宽叶共根，冠高 1.1–1.7 m 且**整株没入水下**（顶 ≤ 水面 −0.45）——
+    从海床一直长到水层中上部，是水下的竖向主景。"""
     base = bed_z(x, y)
-    top_max = min(base + 0.62, -0.52)
+    height = min(rng.uniform(1.1, 1.7), TOP - 0.45 - base)
     current = rng.choice(BED_CURRENT)
     main = WEED if rng.random() < 0.7 else PLANT
-    for _ in range(rng.randint(9, 12)):
+    for _ in range(rng.randint(10, 14)):
         lean = current + rng.uniform(-0.5, 0.5)
-        top = top_max if rng.random() < 0.5 else base + (top_max - base) * rng.uniform(0.6, 0.92)
+        top = base + height * (1.0 if rng.random() < 0.5 else rng.uniform(0.6, 0.92))
         _frond(m, rng, x + rng.uniform(-0.14, 0.14), y + rng.uniform(-0.14, 0.14),
-               base - 0.03, top, lean, rng.uniform(0.20, 0.30),
+               base - 0.03, top, lean, rng.uniform(0.22, 0.34),
                main if rng.random() < 0.8 else PLANT)
     for _ in range(3):
         _pebble(m, rng, x + rng.uniform(-0.4, 0.4), y + rng.uniform(-0.4, 0.4),
@@ -513,11 +506,9 @@ def _build_weeds(m, rng):
 # ---------------------------------------------------------------------------
 
 def _rock_arch(m, rng, cx, cy, top):
-    """岩拱/叠岩：两根石柱 + 横梁 + 柱侧叠石，顶不出水面。"""
+    """岩拱/叠岩：两根石柱 + 横梁 + 柱侧叠石，顶不出水（顶 ≤ 水面 −0.35）。"""
     zb = bed_z(cx, cy)
-    h = min(top, TOP - 0.3) - zb                     # 实际可站高度（留 0.3 出水余量）
-    if h < 0.9:
-        h = min(0.9, TOP - 0.3 - zb)
+    h = max(0.6, min(top, TOP - 0.35 - zb))       # 实际高度：设计高与出水余量取小
     w = h * rng.uniform(0.62, 0.8)                   # 跨度
     pw = 0.42                                        # 柱径
     lean = rng.uniform(0.0, TAU)
@@ -547,7 +538,7 @@ def _build_rocks(m, rng):
                 rr = s * rng.uniform(0.30, 0.60)
                 x, y = cx + math.cos(ang) * rr, cy + math.sin(ang) * rr
             h = w * rng.uniform(0.55, 0.8) * 0.55
-            h = min(h, max(0.10, -0.55 - bed_z(x, y)))   # 浅海：岩顶不出水
+            h = min(h, max(0.10, -0.55 - bed_z(x, y)))   # 岩顶离水面 ≥0.15 m
             _boulder(m, rng, (x, y, _above_floor(bed_z(x, y) + h * 0.22, h * 0.65)),
                      w * rng.uniform(0.95, 1.3) * 0.8, w * rng.uniform(0.7, 0.95) * 0.8, h,
                      ROCK if rng.random() < 0.7 else BED)
@@ -734,7 +725,7 @@ def _build_hero_reef(m, rng, cx, cy):
     _anemone(m, rng, ox(), oy(), rng.choice((PURPLE, PINK, TEAL)), 2.2)
     for _ in range(5):
         _pebble(m, rng, ox(), oy(), rng.uniform(0.12, 0.24))
-    for _ in range(5):
+    for _ in range(3):
         _starfish(m, rng, ox(), oy(), rng.choice((PINK, ORANGE, TEAL, BONE)))
 
 
@@ -799,86 +790,13 @@ def _build_debris(m, rng):
 
 
 # ---------------------------------------------------------------------------
-# 鱼群（独立对象，原点 = 群中心）
-# ---------------------------------------------------------------------------
-
-def _fish(m, fx, fy, fz, heading, pitch, s, body_mat, fin_mat):
-    """一条小鱼：6 顶点椭球身（8 面）+ 双面尾鳍/背鳍/腹鳍（8 面）= 16 三角面。朝向本地 +X。"""
-    BL, BH, BW = 0.34 * s, 0.125 * s, 0.062 * s
-    body_v = [(0.50 * BL, 0.0, 0.02 * BH),      # 吻
-              (0.06 * BL, 0.0, 0.50 * BH),      # 背
-              (0.06 * BL, 0.0, -0.44 * BH),     # 腹
-              (0.10 * BL, -0.5 * BW, -0.04 * BH),
-              (0.10 * BL, 0.5 * BW, -0.04 * BH),
-              (-0.44 * BL, 0.0, 0.0)]           # 尾根
-    body_f = [(0, 1, 3), (0, 3, 2), (0, 2, 4), (0, 4, 1),
-              (5, 1, 4), (5, 4, 2), (5, 2, 3), (5, 3, 1)]
-    m.add(body_v, body_f, at=(fx, fy, fz), rz=heading, ry=pitch, mat=body_mat)
-    fin_v = [(-0.36 * BL, 0.0, 0.0), (-0.62 * BL, 0.0, 0.34 * BH),   # 尾鳍菱形
-             (-0.48 * BL, 0.0, 0.0), (-0.62 * BL, 0.0, -0.30 * BH),
-             (0.16 * BL, 0.0, 0.42 * BH), (-0.12 * BL, 0.0, 0.30 * BH),  # 背鳍
-             (-0.02 * BL, 0.0, 0.60 * BH),
-             (0.04 * BL, 0.0, -0.42 * BH), (-0.10 * BL, 0.0, -0.30 * BH),  # 腹鳍
-             (-0.02 * BL, 0.0, -0.52 * BH)]
-    fin_f = [(0, 1, 2), (0, 2, 3), (4, 5, 6), (7, 8, 9)]
-    fin_v = fin_v + fin_v[:]                    # 真双面：独立顶点块 + 反向绕序
-    fin_f += [tuple(len(fin_v) // 2 + i for i in f[::-1]) for f in fin_f[:4]]
-    m.add(fin_v, fin_f, at=(fx, fy, fz), rz=heading, ry=pitch, mat=fin_mat)
-
-
-def _build_school(idx, rng):
-    cx, cy, cz, spread = MOD_FISH_SCHOOLS[idx]
-    m = K.Mesher()
-    base_h = SCHOOL_HEAD[idx]
-    dom = SCHOOL_DOM[idx]
-    tight = SCHOOL_TIGHT[idx]                   # 0 紧=梭形纵列 → 1 松=云团
-    z_lo, z_hi = -1.05 - cz, -0.70 - cz          # 个体中心相对群中心的 z 行程（夹进 -2.4..-0.85）
-    placed = []
-    s_sum = 0.0
-    for _ in range(rng.randint(12, 16)):
-        s = rng.uniform(0.85, 1.25) * 1.6       # 鱼体长 0.46–0.68 m 体干（含尾 ~0.8–1.1 m）
-        s_sum += s
-        gap2 = (0.32 * s) ** 2                  # 同校鱼体间距 ≥ 0.32·身长（不叠鱼）
-        for _try in range(18):                  # 拒采样
-            u = rng.uniform(-1.0, 1.0) * spread * (0.75 + 0.45 * tight)   # 沿游向
-            v = rng.gauss(0.0, 0.24 * spread * tight)                     # 横向散布
-            fx = math.cos(base_h) * u - math.sin(base_h) * v
-            fy = math.sin(base_h) * u + math.cos(base_h) * v
-            fz = rng.uniform(max(z_lo, -0.4), min(z_hi, 0.4))
-            # 海床净空必须放在带高夹**之后**：先 min(z_hi) 会把珊瑚丘顶的鱼压回沙里
-            #（2026-11-22 实拍：主礁群半埋、可见鱼离床只有 0.1 m，水体保护判不到）。
-            # 净空 0.22 m（鱼体下沿 ≈0.14 m 离床）；再夹水面帽，鱼背不出水（水面 −0.4）。
-            fz = max(fz, bed_z(cx + fx, cy + fy) + 0.22 - cz)
-            fz = min(fz, -0.58 - cz)
-            if all((fx - px) ** 2 + (fy - py) ** 2 + (fz - pz) ** 2 > gap2
-                   for px, py, pz in placed):
-                break
-        placed.append((fx, fy, fz))
-        heading = base_h + rng.gauss(0.0, 0.32)
-        pitch = max(-0.25, min(0.25, rng.gauss(0.0, 0.10)))
-        if rng.random() < 0.2:                  # 少量杂色个体
-            body = rng.choice([c for c in (BONE, FISH_YELLOW, FISH_ORANGE) if c != dom])
-        else:
-            body = dom
-        _fish(m, fx, fy, fz, heading, pitch, s,
-              body, FISH_ORANGE if body in (BONE, FISH_YELLOW) else body)
-    # 鱼身是闭合椭球、鳍是双面薄片：整体带边界，recalc 可能把鱼身翻成内朝外
-    # （实拍 6/7 号群体积为负 = 鱼身被翻）。绕序建模时已按外朝写，禁 recalc。
-    obj = m.to_object("Cloud_FishSchool_%d" % idx, recalc_normals=False)
-    obj.location = (cx, cy, cz)
-    print("[mod_sea] FishSchool_%d: %d 条 均体长 %.2fm 松紧 %.2f"
-          % (idx, len(placed), 0.34 * s_sum / len(placed), tight), flush=True)
-    return obj
-
-
-# ---------------------------------------------------------------------------
 # 气泡柱（独立对象，原点 = 柱底）
 # ---------------------------------------------------------------------------
 
 def _build_bubbles(idx, rng, bx, by):
     base = bed_z(bx, by)
     m = K.Mesher()
-    n = rng.randint(8, 10)
+    n = rng.randint(14, 18)                     # 从海床到水面附近约 2 m 的气泡柱
     z_top = TOP - 0.3                           # 顶泡中心 -0.7：贴近水面、不出水
     for i in range(n):
         t = i / float(n - 1)
@@ -926,9 +844,6 @@ def build():
     debris = K.Mesher()
     _build_debris(debris, rng)
     objects.append(debris.to_object("Cloud_Sea_Debris"))
-
-    for i in range(len(MOD_FISH_SCHOOLS)):
-        objects.append(_build_school(i, rng))
 
     for i, (bx, by) in enumerate(BUBBLE_COLUMNS):
         objects.append(_build_bubbles(i, rng, bx, by))

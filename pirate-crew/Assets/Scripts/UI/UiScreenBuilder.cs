@@ -145,8 +145,6 @@ namespace PirateCrew.UI
             public Button PixelScale2Button;
             public Button PixelScaleAutoButton;
             public Button ResolutionButton;
-            public Button CellShadeButton;
-            public Button PostLineButton;
             public GameObject QuitConfirmPanel;
             public Button QuitConfirmOkButton;
             public Button QuitConfirmCancelButton;
@@ -241,8 +239,6 @@ namespace PirateCrew.UI
             refs.PixelScale2Button = settings.PixelScale2Button;
             refs.PixelScaleAutoButton = settings.PixelScaleAutoButton;
             refs.ResolutionButton = settings.ResolutionButton;
-            refs.CellShadeButton = settings.CellShadeButton;
-            refs.PostLineButton = settings.PostLineButton;
 
             // 退出确认框（默认隐藏；theme window 直切件底板）。
             ConfirmDialogResult quitConfirm = BuildConfirmDialog(canvas, UiStrings.MainQuitConfirm);
@@ -366,8 +362,6 @@ namespace PirateCrew.UI
             public Button PixelScale2Button;
             public Button PixelScaleAutoButton;
             public Button ResolutionButton;
-            public Button CellShadeButton;
-            public Button PostLineButton;
         }
 
         /// <summary>
@@ -389,7 +383,7 @@ namespace PirateCrew.UI
             panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 0.5f);
             panel.pivot = new Vector2(0.5f, 0.5f);
             panel.anchoredPosition = Vector2.zero;
-            panel.sizeDelta = new Vector2(426f, 416f);
+            panel.sizeDelta = new Vector2(426f, 386f);
             UiKit.EnsureWindow(panel, PixelTone.Frame, UiStrings.SettingsTitle, hand, UiSkin.Font.Body,
                 helpButton: false, closeButton: false);
 
@@ -404,11 +398,11 @@ namespace PirateCrew.UI
                 CloseButton = settingsCloseButton,
             };
 
-            // 行容器：十一行流式纵排（缝 3u）。高 308 = 2 线×13 + 9 行×28 + 10 缝×3
+            // 行容器：十行流式纵排（缝 3u）。高 277 = 2 线×13 + 8 行×28 + 9 缝×3
             // （行高取偶、线行取奇——奇偶相位注释见行高常量处）。
             RectTransform rows = UiKit.CreateRect("Rows", panel);
             rows.pivot = new Vector2(0.5f, 1f);
-            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(384f, 308f), new Vector2(0f, -40f));
+            UiKit.SetAnchored(rows, new Vector2(0.5f, 1f), new Vector2(384f, 277f), new Vector2(0f, -40f));
             UiLayout.VBox(rows, 3, default(UiPadding));
 
             BuildSettingsGroupLabel(rows, "GroupAudio", UiStrings.SettingsGroupAudio, hand);
@@ -429,9 +423,6 @@ namespace PirateCrew.UI
                 out result.PixelScale2Button, out result.PixelScaleAutoButton,
                 UiStrings.SettingsOptionPixelScale2, UiStrings.SettingsOptionPixelScaleAuto);
             result.ResolutionButton = BuildResolutionRow(rows, 7, UiStrings.SettingsFieldResolution, hand);
-            BuildSettingsRow(rows, 8, UiStrings.SettingsFieldRenderStyle, hand,
-                out result.CellShadeButton, out result.PostLineButton,
-                UiStrings.SettingsOptionRenderStyleCellShade, UiStrings.SettingsOptionRenderStylePostLine);
 
             // 提示：角标档 + 三级提示字（HintText，压窗底 ≥4.5:1），放底部通带。
             TextMeshProUGUI note = CreateTextExact("SaveHint", panel, UiStrings.SettingsSaveHint,

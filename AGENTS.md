@@ -6,7 +6,7 @@
 - 场景/环境建模走 Blender——场景资产由 Blender 无头管线建模后导入（`tools/blender/scene/`，FBX 入 `Assets/Art/Models/SceneKit/`）。
 - 应用图标也已走 Blender 管线（`tools/blender/icon/`）。
 - 被文档引用的图与档案包入库到 `docs/images/`。
-- 渲染管线：**等距像素卡通**（像素化着色路径，唯一渲染路径，口径见 [docs/技术/渲染/管线/渲染管线.md](docs/技术/渲染/管线/渲染管线.md)）；3D 物理用内置 PhysX，寻路用 AI Navigation 包（NavMesh）。
+- 渲染管线：**等距像素卡通**，唯一渲染路径 = **PostLine**（屏后描边线；CellShade 线已退役，口径见 [docs/技术/渲染/管线/渲染管线.md](docs/技术/渲染/管线/渲染管线.md)）；新写的物体 shader 一律自带标准前向通道（`UniversalForward`），不要再为 CellShade 写第二套通道；3D 物理用内置 PhysX，寻路用 AI Navigation 包（NavMesh）。
 - 改进待办项：`docs/项目/待办事项.md` 只放**一行一条的索引**，每个任务的详情放
   `docs/项目/待办/<任务名>.md`（**一任务一文件**，格式 `# 标题` + `> 一句话现状/卡点` + `## 详情`）；
   任务收官时把该文件移入 `docs/项目/待办/归档/`，并在该目录 `README.md` 的清单里加一行

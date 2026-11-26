@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Cloud_SeabedDeep
-  m_Shader: {fileID: 4800000, guid: f3355f5903de4b7429ddf7124384477c, type: 3}
+  m_Shader: {fileID: 4800000, guid: e1e2bbbc02d711b41b39de58b21a9928, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -16,7 +16,7 @@ Material:
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 2000
+  m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
   m_LockedProperties: 
@@ -38,20 +38,54 @@ Material:
     m_Ints: []
     m_Floats:
     - _AAScale: 1
+    - _AlgaeCoverage: 0.25
+    - _AlgaeEnable: 0
+    - _AlgaeLowBias: 0.5
+    - _AlgaeScale: 0.1
     - _BumpScale: 1
+    - _CausticEnable: 0
+    - _CausticFps: 8
+    - _CausticScale: 2.4
+    - _CausticSpeed: 0.08
+    - _CausticStrength: 0.7
+    - _CausticThreshold: 0.5
+    - _CausticWidth: 0.08
     - _Cutoff: 0.5
     - _DitherMode: 0
     - _DitherPatternSize: 4
     - _DitherStrength: 0.21
+    - _HighY: -2.2
+    - _LowY: -3
     - _MainLightLevel: 4
     - _Metallic: 0
     - _NormalEdgeLevel: -1
     - _NormalEdgeThreshold: 1
     - _OutlinePixels: 1
+    - _PatchCoverage: 0.45
+    - _PatchEnable: 0
+    - _PatchScale: 0.06
+    - _PebbleCell: 0.14
+    - _PebbleDensity: 0.1
+    - _PebbleEnable: 0
     - _Priority: 1
+    - _RippleAngle: 25
+    - _RippleEnable: 0
+    - _RippleSpacing: 0.5
+    - _RippleWarp: 0.5
+    - _RippleWidth: 1
+    - _ShadowStep: 0.5
+    - _SlopeThreshold: 0.35
     - _Smoothness: 0
     - _SnapToPixelGrid: 1
     m_Colors:
-    - _BaseColor: {r: 0.02842604, g: 0.111932404, b: 0.12477178, a: 1}
+    - _AlgaeColor: {r: 0.35999998, g: 0.56, b: 0.41999996, a: 1}
+    - _BaseColor: {r: 0.031552903, g: 0.11976768, b: 0.06612904, a: 1}
+    - _CausticColor: {r: 1, g: 0.98999995, b: 0.8399999, a: 1}
+    - _LowColor: {r: 0.022087032, g: 0.083837375, b: 0.04629033, a: 1}
+    - _PatchColor: {r: 0.8, g: 0.82, b: 0.68, a: 1}
+    - _PebbleColor: {r: 0.5, g: 0.53999996, b: 0.56, a: 1}
     - _RimLightColor: {r: 0, g: 0, b: 0, a: 1}
+    - _RippleColor: {r: 0.76, g: 0.74, b: 0.6, a: 1}
+    - _ShadowTint: {r: 0.56, g: 0.7, b: 0.8, a: 1}
+    - _SlopeTint: {r: 0.8399999, g: 0.88, b: 0.94, a: 1}
   m_BuildTextureStacks: []

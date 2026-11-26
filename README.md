@@ -1,10 +1,10 @@
 # 海盗军团夺宝 3D · Pirate Crew 3D
 
-![天空之岛战斗全景](docs/images/readme/battle-island-wide.png)
+![云端漫步战斗全景](docs/images/readme/battle-cloudsea-wide.gif)
 
 **把敌人的浮空岛轰进海里。** 回合制投掷对战——自由镜头飞行观战，点选你的船员，环绕、装填、开炮，看抛物线划过阳光下的云海，然后一炮把对手掀进天空的尽头。
 
-> Unity 2022.3 · 等距像素卡通（自研像素化着色路径，唯一渲染路径）· 向 Nitrome《Mutiny》（中译《海盗军团抢宝藏》）致敬的 3D 学习重制 · 求职作品集项目（非商业）
+> Unity 2022.3 · 等距像素卡通（PostLine 屏后描边线，唯一渲染路径）· 向 Nitrome《Mutiny》（中译《海盗军团抢宝藏》）致敬的 3D 学习重制 · 求职作品集项目（非商业）
 >
 > **[下载 Windows 版 Demo（Releases）](https://github.com/fanboran/pirate-crew-3d-unity/releases)** · 2P 同屏热座可玩 · 1P vs AI 重建中
 
@@ -34,7 +34,9 @@
 
 ### 🏝️ 天空之岛（关卡 3）
 
-程序化浮空岛：一颗种子稳定生成整座岛——草皮穹顶下藏着半塌的遗迹与悬浮主晶，崖边三挂瀑布坠向云海，西侧瞭望台飘着海盗旗，四周浮岩与萤光尘环绕。红蓝两队各据一头，岛缘之外就是天空。这座岛就是当前的正式战斗关，由八步装配链无头重烘入库（实拍即本页顶部大图）。
+程序化浮空岛：一颗种子稳定生成整座岛——草皮穹顶下藏着半塌的遗迹与悬浮主晶，崖边三挂瀑布坠向云海，西侧瞭望台飘着海盗旗，四周浮岩与萤光尘环绕。红蓝两队各据一头，岛缘之外就是天空。这座岛就是当前的正式战斗关，由八步装配链无头重烘入库（实拍见下图）。
+
+![天空之岛](docs/images/readme/battle-island-wide.png)
 
 ### 🏭 废弃化工厂（关卡 4/5）
 
@@ -133,7 +135,7 @@ pirate-crew/Assets/
 │   │   ├── Battle/        # 组装层：MonoBehaviour 薄壳 + 相机/交互/场景装配
 │   │   ├── SceneArt/      # 自由几何样板关（放样/低模云场）
 │   │   ├── SceneArtBake/  # 程序化浮岛合成与烘焙（种子稳定复现）
-│   │   └── Rendering/     # 像素化着色路径（独立 asmdef）
+│   │   └── Rendering/     # 像素化渲染（PostLine，独立 asmdef）
 │   ├── Campaign/ CrewManagement/ UI/
 ├── Pixelart/              # 像素舞台试点（调试关装配）
 ├── Art/                   # Aseprite UI 参考库、字体、材质、Blender FBX

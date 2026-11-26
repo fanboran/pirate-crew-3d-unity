@@ -4,14 +4,18 @@ using UnityEngine;
 namespace PirateCrew.SceneArt.CloudSea
 {
     /// <summary>
-    /// 云端漫步海水换装的**纯逻辑**（无 MonoBehaviour，无头可测）：shader 资源路径、
-    /// 材质槽分流（浅水/深水/玻璃）、换装判据、颜色与 alpha 解析、水波幅度呼吸公式。
-    /// <see cref="CloudSeaWater"/> 只做 Find/换材质/每帧推属性的胶水，决策全在本类。
+    /// 云端漫步云台水洼 / 水壁 / 玻璃换装的**纯逻辑**（无 MonoBehaviour，无头可测）：
+    /// shader 资源路径、材质槽分流、换装判据、颜色与 alpha 解析、水波幅度呼吸公式。
+    /// <see cref="CloudSeaWater"/> 只做换材质 / 每帧推属性的胶水，决策全在本类。
+    ///
+    /// 【海面不归这里】开阔海面（Cloud_Sea_Surface）由烘焙器直接落清澈水材质
+    /// （<see cref="Pixelart.CloudSeaPath.ClearWaterShaderName"/>），本类只按材质名认云台上的
+    /// 水洼 / 水壁 / 玻璃。
     ///
     /// 【为什么拆出来】本仓铁律：核心逻辑刻意写成纯 C# 静态类以便无头测试
     /// （external/harness 边界：MonoBehaviour 胶水层走 batchmode 收口）。分流与取色是
     /// 字符串/数值契约——拼错即静默失效，值得独立成可断言的纯函数。
-    /// 字面量（对象名/材质名/shader 名）只在 <see cref="CloudSeaPath"/> 一处。
+    /// 字面量（对象名/材质名/shader 名）只在 <see cref="Pixelart.CloudSeaPath"/> 一处。
     /// </summary>
     public static class CloudSeaWaterMaterial
     {
@@ -26,11 +30,11 @@ namespace PirateCrew.SceneArt.CloudSea
         /// <summary>材质槽换装后落哪一档（决定兜底色与兜底 alpha）。</summary>
         public enum SlotKind
         {
-            /// <summary>与海水无关的槽（不换）。</summary>
+            /// <summary>与水无关的槽（不换）。</summary>
             None,
-            /// <summary>Cloud_Water：水面/水洼。</summary>
+            /// <summary>Cloud_Water：云台水洼。</summary>
             Shallow,
-            /// <summary>Cloud_WaterDeep：水壁/深水。</summary>
+            /// <summary>Cloud_WaterDeep：水壁 / 深水洼。</summary>
             Deep,
             /// <summary>Cloud_Glass：玻璃。</summary>
             Glass,
@@ -53,29 +57,14 @@ namespace PirateCrew.SceneArt.CloudSea
         }
 
         /// <summary>
-        /// 槽位的**有效档**：非水材质槽只有在水面对象（按名命中 Cloud_Sea_Surface）上
-        /// 才视为浅水——该对象整体就是水面，材质名契约断了（FBX 内嵌名漂移）时按对象名
-        /// 兜住，不让整片海静默消失。
+        /// 该槽是否换装：玻璃恒换（云台窗板上的玻璃，不属水洼）；其余浅 / 深槽
+        /// （水壁 / 水洼）受 <paramref name="enablePuddles"/> 总闸。
         /// </summary>
-        public static SlotKind EffectiveKind(bool isSurfaceObject, SlotKind kind)
+        public static bool ShouldSwap(SlotKind kind, bool enablePuddles)
         {
-            if (kind != SlotKind.None)
-                return kind;
-            return isSurfaceObject ? SlotKind.Shallow : SlotKind.None;
-        }
-
-        /// <summary>
-        /// 该槽是否换装：水面对象恒换、玻璃恒换（玻璃在云台窗板上，不属水洼）；
-        /// 其余浅/深槽（水壁/水洼/海床水）受 <paramref name="enablePuddles"/> 总闸。
-        /// </summary>
-        public static bool ShouldSwap(bool isSurfaceObject, SlotKind kind, bool enablePuddles)
-        {
-            SlotKind effective = EffectiveKind(isSurfaceObject, kind);
-            if (effective == SlotKind.None)
+            if (kind == SlotKind.None)
                 return false;
-            if (isSurfaceObject || effective == SlotKind.Glass)
-                return true;
-            return enablePuddles;
+            return kind == SlotKind.Glass || enablePuddles;
         }
 
         /// <summary>

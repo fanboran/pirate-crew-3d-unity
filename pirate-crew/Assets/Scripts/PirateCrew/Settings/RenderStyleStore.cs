@@ -7,8 +7,10 @@ namespace PirateCrew.Settings
     /// 渲染风格的纯键值层（设置槽 9，与音频/视频/像素比例读改写共存）。
     ///
     /// 【纯/脏分层】读写只碰 <see cref="SaveData"/> 键值，不碰引擎（同 <see cref="PixelScaleStore"/>）；
-    /// 应用（写 <see cref="RenderStyleState"/>）与重载场景的时机在设置面板服务层。
-    /// 值域 = "cellshade" / "postline"；键缺失或非法时保持传入原值（旧档/首启）。
+    /// 应用（写 <see cref="RenderStyleState"/>）的时机在设置面板服务层。
+    ///
+    /// 【值域】"postline"。"cellshade" 是退役风格的旧存档值：读到一律按 PostLine，旧档不得把
+    /// 退役风格带回来。键缺失或别的非法值时保持传入原值（旧档/首启）。
     /// </summary>
     public static class RenderStyleStore
     {
@@ -24,17 +26,21 @@ namespace PirateCrew.Settings
         const string ValueCellShade = "cellshade";
         const string ValuePostLine = "postline";
 
-        /// <summary>把当前风格写入存档数据（纯函数，不落盘）。</summary>
+        /// <summary>
+        /// 把当前风格写入存档数据（纯函数，不落盘）。本仓只保留 PostLine，写入值恒为 "postline"；
+        /// <paramref name="style"/> 只为保持调用方签名而保留，传入退役风格同样写 "postline"。
+        /// </summary>
         public static void WriteTo(SaveData data, RenderStyle style)
         {
             if (data == null)
                 return;
 
-            data.SetData(StyleKey, style == RenderStyle.PostLine ? ValuePostLine : ValueCellShade);
+            data.SetData(StyleKey, ValuePostLine);
         }
 
         /// <summary>
-        /// 从存档数据读档（纯函数）。键缺失或值非法时返回 false，调用方保持原值。
+        /// 从存档数据读档（纯函数）。"postline" 与旧值 "cellshade" 都读出 PostLine；
+        /// 键缺失或值非法时返回 false，调用方保持原值。
         /// </summary>
         public static bool TryReadFrom(SaveData data, ref RenderStyle style)
         {
@@ -48,8 +54,6 @@ namespace PirateCrew.Settings
             switch (raw.Trim().ToLowerInvariant())
             {
                 case ValueCellShade:
-                    style = RenderStyle.CellShade;
-                    return true;
                 case ValuePostLine:
                     style = RenderStyle.PostLine;
                     return true;
@@ -58,10 +62,10 @@ namespace PirateCrew.Settings
             }
         }
 
-        /// <summary>风格代号 → 存档值（落盘/日志用）。</summary>
+        /// <summary>风格代号 → 存档值（落盘/日志用）。恒为 "postline"。</summary>
         public static string ToStorageValue(RenderStyle style)
         {
-            return style == RenderStyle.PostLine ? ValuePostLine : ValueCellShade;
+            return ValuePostLine;
         }
     }
 }

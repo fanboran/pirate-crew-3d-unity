@@ -168,8 +168,6 @@ _SLOT_DECLS = {
     "Cloud_CoralPurple":{"hex": "#CBA9F5", "roughness": 0.80},
     "Cloud_CoralTeal":  {"hex": "#78E6D6", "roughness": 0.80},
     "Cloud_Deep":       {"hex": "#B9CCE0", "roughness": 0.80},
-    "Cloud_FishOrange": {"hex": "#FFA06E", "roughness": 0.80},
-    "Cloud_FishYellow": {"hex": "#FFDF7A", "roughness": 0.80},
     "Cloud_Mist":       {"hex": "#F5FAFE", "roughness": 0.80},
     "Cloud_Paper":      {"hex": "#F2EAD8", "roughness": 0.80},
     "Cloud_Plant":      {"hex": "#77B56F", "roughness": 0.80},
@@ -190,6 +188,41 @@ _SLOT_DECLS = {
     "Cloud_White":      {"hex": "#FFFFFF", "roughness": 0.80},
     "Cloud_WoodDark":   {"hex": "#4E3428", "roughness": 0.80},
     "Cloud_Yellow":     {"hex": "#E8B23A", "roughness": 0.80},
+
+    # ------------------------------------------------------------------
+    # 云端漫步 Cloud_* 水下生物色卡（cloudsea/creature_kit.py 的物种建模用）。
+    # 选色口径：隔着青色水色和橄榄沙面仍认得出——暖色做主体，白做花纹与腹面，
+    # 深蓝做瞳仁与花纹。Cloud_Fin* 薄片与 Cloud_Eye / Cloud_Ink / Cloud_Band 在 Unity 侧
+    # 烘焙器里按纯平件配光（背光面不压暗）。
+    # ------------------------------------------------------------------
+    "Cloud_Eye":          {"hex": "#FFFFFF", "roughness": 0.80},   # 眼白 / 高光
+    "Cloud_Ink":          {"hex": "#1C2240", "roughness": 0.80},   # 瞳仁 / 深色花纹 / 剑吻
+    "Cloud_Band":         {"hex": "#FFF8F0", "roughness": 0.80},   # 白色花纹 / 浅色腹面
+    "Cloud_Fin_Clown":    {"hex": "#FF9B4A", "roughness": 0.80},   # 小丑鱼鳍
+    "Cloud_Fin_Yellow":   {"hex": "#FFD21F", "roughness": 0.80},   # 蓝吊尾 / 黄吊
+    "Cloud_Fin_Pale":     {"hex": "#F4FAFF", "roughness": 0.80},   # 银鱼尾 / 海马背鳍
+    "Cloud_Fin_Sword":    {"hex": "#27447A", "roughness": 0.80},   # 剑鱼帆鳍与尾
+    "Cloud_Fin_Puffer":   {"hex": "#FFF0A8", "roughness": 0.80},   # 河豚小鳍
+    "Cloud_Fin_Jelly":    {"hex": "#FFC2DA", "roughness": 0.80},   # 水母触手
+    "Cloud_Clown":        {"hex": "#FF7A2E", "roughness": 0.80},   # 小丑鱼
+    "Cloud_Tang":         {"hex": "#2F62E0", "roughness": 0.80},   # 蓝吊
+    "Cloud_TangYellow":   {"hex": "#FFD400", "roughness": 0.80},   # 黄吊身（鳍走 Cloud_Fin_Yellow）
+    "Cloud_Silver":       {"hex": "#D5E6F0", "roughness": 0.80},   # 银鱼
+    "Cloud_Sword":        {"hex": "#3F6EA8", "roughness": 0.80},   # 剑鱼背
+    "Cloud_SwordBelly":   {"hex": "#A8CCE0", "roughness": 0.80},   # 剑鱼腹
+    "Cloud_Puffer":       {"hex": "#F2CB5A", "roughness": 0.80},   # 河豚
+    "Cloud_PufferSpot":   {"hex": "#6E9A4E", "roughness": 0.80},   # 河豚斑与刺
+    "Cloud_Jelly":        {"hex": "#FF9FC6", "roughness": 0.80},   # 水母铃
+    "Cloud_JellyTop":     {"hex": "#FFD0E4", "roughness": 0.80},   # 水母顶
+    "Cloud_Manta":        {"hex": "#4652A6", "roughness": 0.80},   # 魔鬼鱼背
+    "Cloud_Shell":        {"hex": "#4FAE6E", "roughness": 0.80},   # 海龟壳
+    "Cloud_ShellDark":    {"hex": "#2F7F52", "roughness": 0.80},   # 海龟盾片
+    "Cloud_TurtleSkin":   {"hex": "#9CD06C", "roughness": 0.80},   # 海龟皮肤
+    "Cloud_Octopus":      {"hex": "#F0685C", "roughness": 0.80},   # 章鱼
+    "Cloud_Crab":         {"hex": "#EE5A36", "roughness": 0.80},   # 蟹
+    "Cloud_Starfish":     {"hex": "#FF8A5C", "roughness": 0.80},   # 海星（珊瑚橙）
+    "Cloud_Anemone":      {"hex": "#FF7FA8", "roughness": 0.80},   # 海葵触手
+    "Cloud_AnemoneBase":  {"hex": "#C0577A", "roughness": 0.80},   # 海葵基座
 }
 
 
@@ -263,13 +296,19 @@ def write_standable_manifest(asset_name, boxes, fbx_path):
 # 3. FBX 导出（参数与 build_scene_kit.py:629-646 完全一致；勿改，踩过坑）
 # ---------------------------------------------------------------------------
 
-def export_fbx(export_objects, fbx_path):
+def export_fbx(export_objects, fbx_path, bake_space_transform=False):
     """把 export_objects（对象列表）导出为单个 FBX。
 
     铁律（tools/blender/scene/README.md:56-62）：
     - apply_scale_options='FBX_SCALE_NONE'：不在导出侧乘单位因子（useFileScale 会把 cm×0.01 乘进来）；
     - axis_forward='-Z', axis_up='Y'：Blender Z-up → FBX Y-up；
     - path_mode='COPY' 零贴图；mesh_smooth_type='FACE' 保 flat shading。
+
+    bake_space_transform=True：把 Z-up → Y-up 的轴向转换**烘进顶点数据**，而不是留在每个对象的
+    变换里（导出器默认留给对象变换：导入 Unity 后每个子对象都带着「绕 X 转 90°」的旋转）。
+    烘进去之后对象变换只剩它自己的旋转，物体空间就是「x 前、y 上、z 侧」——要在顶点着色器里
+    按物体轴做形变、或用欧拉角给对象定朝向的件（云端漫步的水下生物）必须这样导出。
+    默认 False：既有套件的已入库资产按「留在变换里」的口径烘焙过，口径不变。
     """
     import bpy
     os.makedirs(os.path.dirname(os.path.abspath(fbx_path)), exist_ok=True)
@@ -287,6 +326,7 @@ def export_fbx(export_objects, fbx_path):
         add_leaf_bones=False,
         bake_anim=False,
         path_mode="COPY",
+        bake_space_transform=bool(bake_space_transform),
     )
     return fbx_path
 

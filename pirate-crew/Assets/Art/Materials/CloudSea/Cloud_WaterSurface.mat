@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Cloud_WaterSurface
-  m_Shader: {fileID: 4800000, guid: efaa5acc65415e645882232b27bb7648, type: 3}
+  m_Shader: {fileID: 4800000, guid: 43c321dfa0e3cf34488f292bf6a4fca6, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -16,24 +16,42 @@ Material:
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: 3000
+  m_CustomRenderQueue: 3001
   stringTagMap: {}
   disabledShaderPasses: []
   m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
-    m_TexEnvs:
-    - _MainTex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
+    m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _DepthTest: 1
-    - _VertexColorWeight: 0
-    - _WaterLabHole: 1
+    - _CrestCoverage: 0.3
+    - _CrestEnable: 1
+    - _CrestFps: 6
+    - _CrestScale: 0.22
+    - _CrestSpeed: 0.05
+    - _RefractionPixels: 2.16
+    - _ShadowOpacity: 0.6
+    - _ShadowStep: 0.5
+    - _ShadowWaveAmplitude: 0
+    - _ShadowWaveFps: 12
+    - _ShadowWaveLength: 3.2
+    - _ShadowWaveSpeed: 0.8
+    - _SparkleEnable: 1
+    - _SparkleFps: 5
+    - _SparkleThreshold: 0.955
+    - _WaterOpacity: 0.01
+    - _WaveAmplitude: 0.02
+    - _WaveEnable: 1
+    - _WaveLength: 7
     - _WaveSpeed: 0.6
-    - _WaveStrength: 0.22
+    - _WobbleCell: 0.33
+    - _WobbleFps: 8
     m_Colors:
-    - _Color: {r: 0.07818737, g: 0.6514056, b: 0.6866853, a: 0.6}
+    - _CrestColor: {r: 0.35999998, g: 0.78, b: 0.78999996, a: 1}
+    - _CrestOpacity: 0.69
+    - _ShadowWaterColor: {r: 0.01, g: 0.12999997, b: 0.29999998, a: 1}
+    - _SparkleColor: {r: 1, g: 0.9559999, b: 0.6039999, a: 1}
+    - _SunWaterColor: {r: 0.19999996, g: 0.7, b: 0.72, a: 1}
+    - _WaveDirection: {r: 0.8, g: 0.6, b: 0, a: 0}
   m_BuildTextureStacks: []

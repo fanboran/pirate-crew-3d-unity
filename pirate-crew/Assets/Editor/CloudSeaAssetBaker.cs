@@ -6,14 +6,16 @@ using PirateCrew.SceneArt.CloudSea;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace PirateCrew.EditorTools
 {
     /// <summary>
     /// 云端漫步整场件（<c>CloudWalk.fbx</c> → **自包含** <c>CloudWalk.prefab</c>）的编辑器烘焙器：
-    /// FBX 内嵌材质按名换装成本路径材质资产 → prefab 根挂 <c>CloudSea</c> 运行时三件 →
-    /// 把 prefab 接进 <see cref="RuntimeSceneArt"/> 的 <c>cloudFieldPrefab</c>，一次收口。
-    /// 材质在 prefab 里已换好，运行时实例化不再依赖 <c>PixelartContentConverter</c> 补扫。
+    /// FBX 内嵌材质按「对象 → 着色路线」换装成本路径材质资产 → prefab 根挂 CloudSea 运行时组件
+    /// → 烘一张海床高度格写进 <see cref="CloudSeaLife"/> → 把 prefab 接进 <see cref="RuntimeSceneArt"/>
+    /// 的 <c>cloudFieldPrefab</c>，一次收口。材质在 prefab 里已换好，运行时实例化不再依赖
+    /// <c>PixelartContentConverter</c> 补扫。
     ///
     /// 【入口】
     ///   菜单: PirateCrew/烘焙/云端漫步场景件
@@ -22,22 +24,35 @@ namespace PirateCrew.EditorTools
     /// 【前置】两样必须先在，缺一会编译不过/报错退出：
     ///   ① <c>tools/blender/scene/cloudsea/assemble_cloudsea.py</c> 出库的
     ///      <c>Assets/Art/Models/SceneKit/CloudWalk.fbx</c>（内嵌材质名 = style_tokens.py 的
-    ///      <c>Cloud_*</c> 段）；② <c>PirateCrew.SceneArt.CloudSea</c> 命名空间下的
-    ///      CloudSeaWater / CloudSeaWeather / CloudSeaLife 三个运行时组件（本文件直接
+    ///      <c>Cloud_*</c> 段）；② <c>PirateCrew.SceneArt.CloudSea</c> 命名空间下的运行时组件
+    ///      CloudSeaWater / CloudSeaWeather / CloudSeaLife / CloudSeaSunShadow（本文件直接
     ///      <c>AddComponent</c> 引用，不走反射）。
     ///
-    /// 【材质规则（按源材质名分流，落 <see cref="MaterialFolder"/>）】
-    ///   · 普通不透明：<see cref="PixelartMaterialFactory"/> 配方（物体 shader、色带 4 档、
-    ///     抖动 0.21、法线内墨线、队列 2000），色取源材质 `_BaseColor`/`_Color`；
-    ///   · `Cloud_Brass` / `Cloud_Gold`：在配方之上加金属件参数（`_Metallic` 0.8 /
-    ///     `_Smoothness` 1 / 暖金边缘光）；大平面高光翻档的取舍见工厂 `Configure` 头注释——
-    ///     金属件显式给非零值正是该口径的例外侧；
-    ///   · `Cloud_Water` / `Cloud_WaterDeep` / `Cloud_Glass`：透明趟材质
-    ///     （`PixelartPath.TransparentShaderName`）。透明趟是"覆盖层"语义：不吃色带/描边、
-    ///     按透明队列画在合成结果之上（`PixelartTransparentFeature` 收件区间
-    ///     [TransparentQueueMin, TransparentQueueMax]）——水面/玻璃要的是连续 alpha 混合，
-    ///     不适合打成色带档，这是有意为之，不是漏配。alpha 取源材质色（Blender token 只有
-    ///     hex、内嵌色 alpha 恒 1，故按名兜底 0.35 / 0.55 / 0.25）。
+    /// 【着色路线（判据在 <see cref="CloudSeaMaterialRoute"/>，落 <see cref="MaterialFolder"/>）】
+    ///   · Default（水上件）：<see cref="PixelartMaterialFactory"/> 配方的物体 shader（色带 4 档、
+    ///     抖动 0.21、法线内墨线、队列 2000），色取源材质 <c>_BaseColor</c>/<c>_Color</c>；
+    ///     其中 <c>Cloud_Water</c> / <c>Cloud_WaterDeep</c> / <c>Cloud_Glass</c> 是云台水洼 /
+    ///     水壁 / 玻璃的透明 shader 材质（<see cref="PixelartPath.TransparentShaderName"/> 的
+    ///     同族 <c>CloudSeaWater</c>；连续 alpha 混合，不打色带档）；
+    ///   · Seabed（<c>Cloud_Sea_Bed</c>）：程序沙地 + 焦散的海床 shader；
+    ///   · ClearWater（<c>Cloud_Sea_Surface</c>）：清澈透明海面 shader，专用资产
+    ///     <c>Cloud_WaterSurface.mat</c>；
+        ///   · Underwater（海草 / 岩石 / 珊瑚 / 沉积物 / 气泡 / 水下生物 Cloud_Creature_*）：水下生态 shader
+        ///     （平面两档卡通色；不描边——没有深度 / 法线通道，PostLine 的描边判据看不到它们）。
+    ///   同一个源材质名被多条路线共用时（珊瑚色既是海底的珊瑚也是海鸥的喙），默认路线保留原名、
+    ///   其余路线的资产名加路线后缀（<c>Cloud_Coral_Underwater</c>）。
+    ///
+    /// 【海面族材质的参数归谁】海床 / 水下 / 海面三支 shader 的材质只由本烘焙器写「shader +
+    /// 固有色 + 路线开关」，其余参数（沙纹、焦散、水色、摆幅……）是材质资产上的手调值，重跑
+    ///   不覆盖——调参在材质上改，不必改这里。
+    ///
+    /// 【海床高度格】从 <c>Cloud_Sea_Bed</c> 网格顶点烘两张方格（<see cref="BedGridCells"/>）
+    ///   写进 <see cref="CloudSeaLife"/>：运行时游泳的生物查净空格贴着沙丘起伏定深，贴底的生物查
+    ///   贴地格落脚（<see cref="CloudSeaBedGrid"/>）。
+    ///
+    /// 【金属件与鱼色卡】<c>Cloud_Brass</c> / <c>Cloud_Gold</c>：在配方之上加金属件参数
+    ///   （`_Metallic` 0.8 / `_Smoothness` 1 / 暖金边缘光）；大平面高光翻档的取舍见工厂
+    ///   <c>Configure</c> 头注释——金属件显式给非零值正是该口径的例外侧。
     ///
     /// 【为什么同时写 `_Color` 与 `_BaseColor`】透明 shader 的有效乘色属性是 `_Color`
     /// （贴图 × 顶点色 × `_Color` 后 alpha 混合）；`_BaseColor` 是同值镜像，对齐"本仓材质
@@ -65,7 +80,7 @@ namespace PirateCrew.EditorTools
         /// <summary>Blender cloudsea kit 出库件（assemble_cloudsea.py 的 FBX 落点）。</summary>
         const string ModelPath = "Assets/Art/Models/SceneKit/CloudWalk.fbx";
 
-        /// <summary>烘焙产物（自包含 prefab：材质已换好、根挂 CloudSea 三件）。</summary>
+        /// <summary>烘焙产物（自包含 prefab：材质已换好、根挂 CloudSea 运行时组件）。</summary>
         const string PrefabPath = "Assets/Art/Models/SceneKit/CloudWalk.prefab";
 
         /// <summary>云端漫步材质资产目录（按名一材质一文件，重跑复用/更新，幂等）。</summary>
@@ -74,40 +89,26 @@ namespace PirateCrew.EditorTools
         /// <summary>Battle 折叠载体（RuntimeSceneArt 现居其中；ScenePrefabCollapse 的折叠目标）。</summary>
         const string BattleRigPath = "Assets/Prefabs/PirateCrew/Battle/BattleRig.prefab";
 
-        // ---- WaterLab 复刻水（2026-11-21 创始人裁决：海面换 water-lab 预研水）----
-        /// <summary>模拟核 compute（实验室装配器同路径）。</summary>
-        const string WaterLabComputePath = "Assets/Art/Shaders/WaterLab/WaterLabSim.compute";
-
-        /// <summary>云海版双趟 ocean shader（Resources 持有，内部名取 Find）。</summary>
-        const string WaterLabOceanShaderName = "PirateCrew/CloudSea/WaterLabOcean";
-
-        /// <summary>ocean 网格资产（512²/30 m，与实验室装配同口径；prefab 不能内嵌网格）。</summary>
-        const string OceanMeshPath = "Assets/Art/Models/SceneKit/CloudWalkOcean.asset";
-
-        /// <summary>ocean 材质（细节法线接原作提取贴图）。</summary>
-        const string OceanMaterialPath = "Assets/Art/Materials/CloudSea/Cloud_WaterLabOcean.mat";
-
-        /// <summary>原作细节法线提取贴图（WaterLabSetup.EnsureRefNormalAsset 入库件）。</summary>
-        const string DetailNormalPath = "Assets/Art/Materials/WaterLab/WaterNormal2D_Ref.png";
-
-        /// <summary>ocean 子物体名（VerifySavedPrefab 按名放行异物 shader）。</summary>
-        const string OceanObjectName = "Cloud_WaterLabOcean";
-
-        /// <summary>
-        /// 简版海面对象（mod_sea 的 Cloud_Sea_Surface）专用材质：与 Cloud_Water 同 shader
-        /// 同色，但 `_WaterLabHole = 1`——WaterLab 域内整片 clip，让 ocean 全权接管水面。
-        /// 2026-11-21 实拍：简版水与 ocean 同高，透明排序把大平面简版水排在 ocean 之后，
-        /// 多轮 WaterLab 效果（焦散/折射/云影）全被它盖住；水洼/玻璃仍用 Cloud_Water。
-        /// </summary>
-        const string SurfaceObjectName = "Cloud_Sea_Surface";
+        /// <summary>海面专用材质（Cloud_Sea_Surface；清澈透明水 shader，水色在材质上直接配）。</summary>
+        const string SurfaceMaterialName = "Cloud_WaterSurface";
         const string SurfaceMaterialPath = MaterialFolder + "/Cloud_WaterSurface.mat";
 
-        /// <summary>透明趟材质（按名分流；PostLineMaterialSwapper 只认物体 shader 材质，这三件天然不在换装列）。</summary>
+        /// <summary>
+        /// 海床高度格：1 单位格距、覆盖 ±20 单位。格点取周围半格内最高的顶点，所以比沙面略高——
+        /// 活物的「不能穿线」宁可高一线。可视区里的水下生物锚点都在覆盖范围内。
+        /// </summary>
+        const int BedGridCells = 40;
+        const float BedGridHalfSize = 20f;
+
+        /// <summary>海面材质队列 = Transparent + 1：URP 标准透明档的收件下界实测是 3001（CloudSeaRain.shader 头注）。</summary>
+        const int TransparentQueueStandard = 3001;
+
+        /// <summary>
+        /// 透明趟材质（按源材质名分流；PostLineMaterialSwapper 只认物体 shader 材质，这三件天然不在换装列）。
+        /// </summary>
         static readonly HashSet<string> TransparentNames = new HashSet<string>
         {
             "Cloud_Water", "Cloud_WaterDeep", "Cloud_Glass",
-            // 海面专用挖洞材质（Cloud_Sea_Surface 在域内让位给 WaterLab ocean）
-            "Cloud_WaterSurface",
         };
 
         /// <summary>金属件（配方之上加金属度/光滑度/暖金边缘光；其余材质保持工厂默认的非金属无边缘光）。</summary>
@@ -117,15 +118,29 @@ namespace PirateCrew.EditorTools
         };
 
         /// <summary>
-        /// 鱼专属色卡（配方之上开**背光边缘光**）：水下鱼体的着色落在 4 档量化的暗档
-        /// （侧面法线背光 ⇒ band0 环境光），暗档里色相几乎不参与——换多亮的 albedo 都会被
-        /// 60% 青水洗成灰青（首轮实拍）。边缘光趟（方向 = −主光）在鱼体轮廓勾一圈暖边，
-        /// 色相从暗档里读出来（创始人 2026-11-21"针对每种物品一套色卡"的落地件）。
+        /// 水下会摇曳的植物材质：开薄片双面受光 + 梢部摆幅。这些材质的网格带「离根高度比」UV（Blender 侧
+        /// kit_common.Mesher 的逐顶点辅助量）。水下生物的网格另有三套 UV 携带肢体动画数据（CloudSeaAnim.hlsl）；
+        /// 没有任何 UV 的水下网格（岩石 / 珊瑚）位移恒 0。
         /// </summary>
-        static readonly HashSet<string> FishGlowNames = new HashSet<string>
+        static readonly HashSet<string> SwayingPlantNames = new HashSet<string>
         {
-            "Cloud_FishOrange", "Cloud_FishYellow",
+            "Cloud_Seaweed", "Cloud_Plant",
         };
+
+        /// <summary>
+        /// 水下两档色的乘色（sRGB）：这是口径值、不跟手调走——受光面近原色略暖，背光面偏冷不压死，
+        /// 影区再乘 shader 的影区乘色。鳍 / 眼白 / 瞳孔这类纯平件把背光面乘色也配成受光面的值。
+        /// </summary>
+        static readonly Color UnderwaterHighlight = new Color(1.04f, 1.02f, 0.96f, 1f);
+        static readonly Color UnderwaterShadow = new Color(0.68f, 0.74f, 0.92f, 1f);
+
+        /// <summary>
+        /// 材质名前缀 → 水下材质的薄片 / 纯平口径（Blender 侧 style_tokens 的槽名）：
+        /// `Cloud_Fin` 鳍类薄片：双面受光（深度法线通道里写朝上法线，折缝处不出棱线）+ 纯平色；
+        /// `Cloud_Eye` / `Cloud_Ink` 眼白 / 瞳孔 / 花纹描边：纯平色。
+        /// </summary>
+        const string FinMaterialPrefix = "Cloud_Fin";
+        static readonly string[] FlatMaterialPrefixes = { "Cloud_Fin", "Cloud_Eye", "Cloud_Ink" };
 
         /// <summary>
         /// 透明件的 alpha 兜底表（源材质读不到 &lt;1 的 alpha 时按名取值；源材质显式带了
@@ -134,13 +149,20 @@ namespace PirateCrew.EditorTools
         /// </summary>
         static readonly Dictionary<string, float> TransparentAlphaFallback = new Dictionary<string, float>
         {
-            // 水面/水洼 0.60（2026-11-22 复核：WaterLab 域内水面接管后，域外简版水保持
-            // 0.60 才与域内青染+焦散的平均色对齐；0.32 会让 30 m 域界读成一块深青方池）。
-            // 棋盘感的根因是水波幅度，已由 waveStrength 0.22→0.06 去掉。
             { "Cloud_Water", 0.60f },
             { "Cloud_WaterDeep", 0.60f },
             { "Cloud_Glass", 0.25f },
         };
+
+        /// <summary>本烘焙器用到的五支 shader（BuildAll 一次性取齐）。</summary>
+        sealed class Shaders
+        {
+            public Shader Object;
+            public Shader Transparent;
+            public Shader ClearWater;
+            public Shader Seabed;
+            public Shader Underwater;
+        }
 
         /// <summary>烘焙统计（日志收口用；数值只进日志，不作契约）。</summary>
         sealed class Stats
@@ -167,8 +189,7 @@ namespace PirateCrew.EditorTools
             EnsureModelImporter(problems);
 
             GameObject model = null;
-            Shader objectShader = null;
-            Shader transparentShader = null;
+            Shaders shaders = null;
             if (problems.Count == 0)
             {
                 model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
@@ -176,22 +197,7 @@ namespace PirateCrew.EditorTools
                     problems.Add("缺 " + ModelPath
                         + "（先跑 tools/blender/scene/cloudsea/assemble_cloudsea.py 出库）。");
 
-                objectShader = PixelartShaders.Load(PixelartPath.ObjectShaderName);
-
-                // 海水/水洼/玻璃走**双趟** shader：CellShade 有 PixelartTransparent 趟、
-                // PostLine 有标准前向透明趟。不能再用单趟 PixelartTransparent——PostLine
-                // 渲染器没有那个 LightMode 趟，水会整片消失（2026-11-11 烘焙器审计）。
-                // 文件名是 CloudSeaWater.shader、内部名末段是 Water，不走 PixelartShaders.Load
-                // 的“文件名=末段”约定；显式 Resources 路径 + Shader.Find 兜底。
-                transparentShader = Resources.Load<Shader>(CloudSeaWaterMaterial.ShaderResourcePath);
-                if (transparentShader == null)
-                    transparentShader = PixelartShaders.Find(CloudSeaPath.WaterShaderName);
-                if (objectShader == null)
-                    problems.Add("物体 shader 摸不到：" + PixelartPath.ObjectShaderName + "，不透明件无法换装。");
-                if (transparentShader == null)
-                    problems.Add("水/玻璃 shader 摸不到：Resources/"
-                        + CloudSeaWaterMaterial.ShaderResourcePath + " 与 "
-                        + CloudSeaPath.WaterShaderName + " 都落空。");
+                shaders = LoadShaders(problems);
             }
 
             var stats = new Stats();
@@ -201,8 +207,10 @@ namespace PirateCrew.EditorTools
                 var root = (GameObject)PrefabUtility.InstantiatePrefab(model);
                 root.name = "CloudWalk";
 
-                SwapMaterials(root, objectShader, transparentShader, problems, stats);
-                EnsureCloudSeaComponents(root, stats);
+                SwapMaterials(root, shaders, problems, stats);
+                EnsureCloudSeaComponents(root, problems, stats);
+                VerifyCreatureAxes(root, problems);
+                VerifyCreatureJoints(root, problems);
 
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath, out prefabSaved);
                 Object.DestroyImmediate(root);
@@ -268,25 +276,79 @@ namespace PirateCrew.EditorTools
         }
 
         // ------------------------------------------------------------------
+        // shader 取用
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 取齐五支 shader，缺哪支记一条问题。海面族三支（清澈水 / 海床 / 水下）走
+        /// <see cref="PixelartShaders.Load"/>（Resources 持有，文件名 = 内部名末段）；云台水洼的
+        /// <c>CloudSeaWater</c> 文件名与内部名末段不一致，显式 Resources 路径 + 按内部名兜底。
+        /// </summary>
+        static Shaders LoadShaders(List<string> problems)
+        {
+            var shaders = new Shaders();
+            shaders.Object = PixelartShaders.Load(PixelartPath.ObjectShaderName);
+            shaders.Transparent = Resources.Load<Shader>(CloudSeaWaterMaterial.ShaderResourcePath);
+            if (shaders.Transparent == null)
+                shaders.Transparent = PixelartShaders.Find(CloudSeaPath.WaterShaderName);
+            shaders.ClearWater = PixelartShaders.Load(CloudSeaPath.ClearWaterShaderName);
+            shaders.Seabed = PixelartShaders.Load(CloudSeaPath.SeabedShaderName);
+            shaders.Underwater = PixelartShaders.Load(CloudSeaPath.UnderwaterShaderName);
+
+            if (shaders.Object == null)
+                problems.Add("物体 shader 摸不到：" + PixelartPath.ObjectShaderName + "，不透明件无法换装。");
+            if (shaders.Transparent == null)
+                problems.Add("水/玻璃 shader 摸不到：Resources/"
+                    + CloudSeaWaterMaterial.ShaderResourcePath + " 与 "
+                    + CloudSeaPath.WaterShaderName + " 都落空。");
+            if (shaders.ClearWater == null)
+                problems.Add("海面 shader 摸不到：" + CloudSeaPath.ClearWaterShaderName
+                    + "（Resources/PixelartShaders/CloudSeaClearWater.shader 未编译或未导入？）。");
+            if (shaders.Seabed == null)
+                problems.Add("海床 shader 摸不到：" + CloudSeaPath.SeabedShaderName
+                    + "（Resources/PixelartShaders/CloudSeaSeabed.shader 未编译或未导入？）。");
+            if (shaders.Underwater == null)
+                problems.Add("水下生态 shader 摸不到：" + CloudSeaPath.UnderwaterShaderName
+                    + "（Resources/PixelartShaders/CloudSeaUnderwater.shader 未编译或未导入？）。");
+            return shaders;
+        }
+
+        // ------------------------------------------------------------------
         // 材质换装
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 逐 renderer 逐槽换装：按源材质名 Ensure（同源材质名只落一次盘），换过的 renderer 记数。
-        /// 逐槽而不是只看第 0 槽：多材质 renderer 的其余子网格留在内嵌材质上就是"旧 shader +
-        /// 未定义 G-buffer"的暗坑（PixelartContentConverter 同一条教训）。
+        /// 逐 renderer 逐槽换装：先按对象名定路线，再按（源材质, 路线）建/取材质，同源多槽只走
+        /// 一次 Ensure/落盘。逐槽而不是只看第 0 槽：多材质 renderer 的其余子网格留在内嵌材质上
+        /// 就是"旧 shader + 未定义 G-buffer"的暗坑（PixelartContentConverter 同一条教训）。
         /// </summary>
-        static void SwapMaterials(GameObject root, Shader objectShader, Shader transparentShader,
-            List<string> problems, Stats stats)
+        static void SwapMaterials(GameObject root, Shaders shaders, List<string> problems, Stats stats)
         {
             EnsureFolder(MaterialFolder);
+            MeshRenderer[] renderers = root.GetComponentsInChildren<MeshRenderer>(true);
 
-            // 源材质 → 烘焙材质（同源材质多 renderer 共享，只走一次 Ensure/落盘）
-            var baked = new Dictionary<Material, Material>();
-
-            foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+            // 第一遍：每个源材质名出现在几条路线上——被多条路线共用的名字要派生后缀资产。
+            var routesPerName = new Dictionary<string, HashSet<CloudSeaRoute>>();
+            for (int r = 0; r < renderers.Length; r++)
             {
+                CloudSeaRoute route = CloudSeaMaterialRoute.Of(renderers[r].gameObject.name);
+                foreach (Material source in renderers[r].sharedMaterials)
+                {
+                    if (source == null)
+                        continue;
+                    if (!routesPerName.TryGetValue(source.name, out HashSet<CloudSeaRoute> routes))
+                        routesPerName[source.name] = routes = new HashSet<CloudSeaRoute>();
+                    routes.Add(route);
+                }
+            }
+
+            // 第二遍：建/取材质并换装。
+            var baked = new Dictionary<(Material source, CloudSeaRoute route), Material>();
+            for (int r = 0; r < renderers.Length; r++)
+            {
+                MeshRenderer renderer = renderers[r];
                 stats.Renderers++;
+                CloudSeaRoute route = CloudSeaMaterialRoute.Of(renderer.gameObject.name);
                 Material[] slots = renderer.sharedMaterials;
                 bool changed = false;
 
@@ -296,16 +358,11 @@ namespace PirateCrew.EditorTools
                     if (source == null)
                         continue;
 
-                    Material target;
-                    if (renderer.gameObject.name == SurfaceObjectName && source.name == "Cloud_Water")
+                    if (!baked.TryGetValue((source, route), out Material target))
                     {
-                        // 海面专用挖洞材质（域内让位给 WaterLab ocean，域外仍画简版水）。
-                        target = EnsureSurfaceWaterMaterial(source, transparentShader, problems, stats);
-                    }
-                    else if (!baked.TryGetValue(source, out target))
-                    {
-                        target = EnsureMaterial(source, objectShader, transparentShader, problems, stats);
-                        baked[source] = target;
+                        target = EnsureMaterial(source, route, routesPerName[source.name].Count, shaders,
+                            problems, stats);
+                        baked[(source, route)] = target;
                     }
 
                     if (target == null || ReferenceEquals(slots[i], target))
@@ -324,10 +381,11 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 按源材质名新建/就地更新云端漫步材质（幂等：重跑覆盖参数，源材质取色是唯一入色口）。
+        /// 按源材质名 + 路线新建/就地更新材质（幂等：重跑覆盖「shader + 固有色 + 路线开关」，
+        /// 源材质取色是唯一入色口；其余参数留在资产上不碰）。
         /// 取色失败**先报错后落盘**——半配置的材质资产不落盘，下次跑干净重来。
         /// </summary>
-        static Material EnsureMaterial(Material source, Shader objectShader, Shader transparentShader,
+        static Material EnsureMaterial(Material source, CloudSeaRoute route, int routeCount, Shaders shaders,
             List<string> problems, Stats stats)
         {
             string name = source.name;
@@ -338,6 +396,26 @@ namespace PirateCrew.EditorTools
                 return null;
             }
 
+            // 海面：专用资产 + 清澈水 shader。水色是材质上手配的，不从源材质取色。
+            if (route == CloudSeaRoute.ClearWater)
+            {
+                Material surface = AssetDatabase.LoadAssetAtPath<Material>(SurfaceMaterialPath);
+                if (surface == null)
+                {
+                    surface = new Material(shaders.ClearWater) { name = SurfaceMaterialName };
+                    AssetDatabase.CreateAsset(surface, SurfaceMaterialPath);
+                    stats.MaterialsCreated++;
+                }
+                else
+                {
+                    stats.MaterialsUpdated++;
+                }
+                surface.shader = shaders.ClearWater;
+                surface.renderQueue = TransparentQueueStandard;
+                EditorUtility.SetDirty(surface);
+                return surface;
+            }
+
             // 先取色（失败即返回，不落半配置资产）；后建/载资产。
             if (!PixelartMaterialFactory.TryGetAlbedo(source, out Color color))
             {
@@ -345,12 +423,13 @@ namespace PirateCrew.EditorTools
                 return null;
             }
 
-            bool transparent = TransparentNames.Contains(name);
-            string path = MaterialFolder + "/" + name + ".mat";
+            bool transparent = route == CloudSeaRoute.Default && TransparentNames.Contains(name);
+            string assetName = CloudSeaMaterialRoute.AssetName(name, route, routeCount);
+            string path = MaterialFolder + "/" + assetName + ".mat";
             Material mat = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (mat == null)
             {
-                mat = new Material(transparent ? transparentShader : objectShader) { name = name };
+                mat = new Material(ShaderOf(route, transparent, shaders)) { name = assetName };
                 AssetDatabase.CreateAsset(mat, path);
                 stats.MaterialsCreated++;
             }
@@ -358,15 +437,39 @@ namespace PirateCrew.EditorTools
             {
                 stats.MaterialsUpdated++;
             }
-            mat.name = name;
+            mat.name = assetName;
 
-            if (transparent)
-                ConfigureTransparent(mat, name, color, transparentShader);
-            else
-                ConfigureOpaque(mat, name, color, objectShader);
+            switch (route)
+            {
+                case CloudSeaRoute.Seabed:
+                    ConfigureSeabed(mat, color, shaders);
+                    break;
+                case CloudSeaRoute.Underwater:
+                    ConfigureUnderwater(mat, name, color, shaders);
+                    break;
+                default:
+                    if (transparent)
+                        ConfigureTransparent(mat, name, color, shaders);
+                    else
+                        ConfigureOpaque(mat, name, color, shaders);
+                    break;
+            }
 
             EditorUtility.SetDirty(mat);
             return mat;
+        }
+
+        static Shader ShaderOf(CloudSeaRoute route, bool transparent, Shaders shaders)
+        {
+            switch (route)
+            {
+                case CloudSeaRoute.Seabed:
+                    return shaders.Seabed;
+                case CloudSeaRoute.Underwater:
+                    return shaders.Underwater;
+                default:
+                    return transparent ? shaders.Transparent : shaders.Object;
+            }
         }
 
         /// <summary>
@@ -375,9 +478,9 @@ namespace PirateCrew.EditorTools
         /// 配方之上做加法。显式再写 `_MainLightLevel`/`_DitherStrength` 与工厂默认同值——
         /// 本烘焙器的定值口径不随工厂默认漂移而静默变化（工厂改默认必须在这里同步裁决）。
         /// </summary>
-        static void ConfigureOpaque(Material mat, string name, Color albedo, Shader objectShader)
+        static void ConfigureOpaque(Material mat, string name, Color albedo, Shaders shaders)
         {
-            mat.shader = objectShader;
+            mat.shader = shaders.Object;
 
             albedo.a = 1f;
             PixelartMaterialFactory.Configure(mat, albedo, PixelartMaterialFactory.DefaultBandCount);
@@ -402,21 +505,15 @@ namespace PirateCrew.EditorTools
                 mat.SetFloat("_Smoothness", 1f);
                 mat.SetColor("_RimLightColor", new Color(0.85f, 0.78f, 0.5f, 1f));
             }
-
-            if (FishGlowNames.Contains(name))
-            {
-                mat.SetColor("_RimLightColor", new Color(1f, 0.55f, 0.25f, 1f));
-            }
         }
 
         /// <summary>
-        /// 透明件配方：透明趟 shader + 队列落透明区间（`PixelartTransparentFeature` 的收件
-        /// 区间下界即 TransparentQueueMin；复用了旧不透明资产时队列必须显式扳回来）。
+        /// 透明件配方：透明 shader + 队列落透明区间。
         /// 有效乘色是 `_Color`（含 alpha），`_BaseColor` 同值镜像（见类头）。
         /// </summary>
-        static void ConfigureTransparent(Material mat, string name, Color color, Shader transparentShader)
+        static void ConfigureTransparent(Material mat, string name, Color color, Shaders shaders)
         {
-            mat.shader = transparentShader;
+            mat.shader = shaders.Transparent;
 
             float alpha = color.a;
             if (alpha > 0.999f)
@@ -433,35 +530,62 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 海面专用材质（Cloud_Sea_Surface）：取色/透明配置与 Cloud_Water 同源，
-        /// 额外写 `_WaterLabHole = 1`——shader 在 WaterLab 域内整片裁掉简版水，
-        /// 水面由 ocean 全权渲染；域外照常画简版水兜底。幂等（资产复用、重跑覆盖参数）。
+        /// 海床材质：沙色基色 = 源色。海床网格的第二个槽（远景的平整深色外框，源色
+        /// <c>Cloud_SeabedDeep</c>）关掉全部图案，只留一深一浅两档色——它在可视区之外，
+        /// 只求与近处海床衔接处不跳色。
         /// </summary>
-        static Material EnsureSurfaceWaterMaterial(Material source, Shader transparentShader,
-            List<string> problems, Stats stats)
+        static void ConfigureSeabed(Material mat, Color color, Shaders shaders)
         {
-            if (!PixelartMaterialFactory.TryGetAlbedo(source, out Color color))
-            {
-                problems.Add("海面材质 Cloud_Water 取不到源色——Cloud_Sea_Surface 无法换装。");
-                return null;
-            }
+            mat.shader = shaders.Seabed;
+            // 源色（调色板 Sand）偏灰白，透过青色水后读成薄荷绿。乘一组暖沙增益让它在水下仍读作沙：
+            // 取色口给出的数值 r × 1.11、g × 1.07、b × 0.53（与材质上实拍的值同源，改这里等于改所有海床材质）。
+            color = new Color(color.r * 1.11f, color.g * 1.07f, color.b * 0.53f, 1f);
+            mat.SetColor("_BaseColor", color);
+            mat.renderQueue = -1;   // 跟 shader 标签走（Geometry）
 
-            Material mat = AssetDatabase.LoadAssetAtPath<Material>(SurfaceMaterialPath);
-            if (mat == null)
+            if (mat.name == "Cloud_SeabedDeep")
             {
-                mat = new Material(transparentShader) { name = "Cloud_WaterSurface" };
-                AssetDatabase.CreateAsset(mat, SurfaceMaterialPath);
-                stats.MaterialsCreated++;
+                mat.SetColor("_LowColor", new Color(color.r * 0.7f, color.g * 0.7f, color.b * 0.7f, 1f));
+                mat.SetFloat("_PatchEnable", 0f);
+                mat.SetFloat("_RippleEnable", 0f);
+                mat.SetFloat("_AlgaeEnable", 0f);
+                mat.SetFloat("_PebbleEnable", 0f);
+                mat.SetFloat("_CausticEnable", 0f);
             }
-            else
-            {
-                stats.MaterialsUpdated++;
-            }
+        }
 
-            ConfigureTransparent(mat, "Cloud_Water", color, transparentShader);
-            mat.SetFloat("_WaterLabHole", 1f);
-            UnityEditor.EditorUtility.SetDirty(mat);
-            return mat;
+        /// <summary>
+        /// 水下生态材质：固有色 = 源色；两档乘色是口径值，每次重写。会摇曳的植物开薄片
+        /// 双面受光与梢部摆幅；鳍 / 眼按名走薄片 / 纯平口径（见 <see cref="FinMaterialPrefix"/>）。
+        /// </summary>
+        static void ConfigureUnderwater(Material mat, string sourceName, Color color, Shaders shaders)
+        {
+            mat.shader = shaders.Underwater;
+            color.a = 1f;
+            mat.SetColor("_BaseColor", color);
+            mat.SetColor("_HighlightColor", UnderwaterHighlight);
+            mat.SetColor("_ShadowColor", UnderwaterShadow);
+            mat.SetFloat("_BandCut", 0.5f);
+            mat.SetFloat("_Wrap", 0.25f);
+            mat.SetFloat("_TwoSidedLight", 0f);
+            mat.SetFloat("_SwayAmplitude", 0f);
+            mat.renderQueue = -1;   // 跟 shader 标签走（Geometry）
+
+            if (SwayingPlantNames.Contains(sourceName))
+            {
+                mat.SetFloat("_TwoSidedLight", 1f);
+                mat.SetFloat("_SwayAmplitude", 0.10f);
+            }
+            if (sourceName.StartsWith(FinMaterialPrefix, System.StringComparison.Ordinal))
+                mat.SetFloat("_TwoSidedLight", 1f);
+            foreach (string prefix in FlatMaterialPrefixes)
+            {
+                if (sourceName.StartsWith(prefix, System.StringComparison.Ordinal))
+                {
+                    mat.SetColor("_ShadowColor", UnderwaterHighlight);
+                    break;
+                }
+            }
         }
 
         // ------------------------------------------------------------------
@@ -469,144 +593,221 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// prefab 根挂 CloudSea 运行时三件（水/天气/生态；脚本另在
+        /// prefab 根挂 CloudSea 运行时组件（水 / 天气 / 生态 / 主光阴影；脚本另在
         /// PirateCrew.SceneArt.CloudSea 命名空间）。GetComponent 判重 → 幂等；组件挂在
         /// **prefab 根**而不是 FBX 子物体上，FBX 重导入不触碰本 prefab 的组件层。
+        /// 海床高度格与气泡的投影开关每次都重写（它们随 FBX 网格变，不是手调值）。
         /// </summary>
-        static void EnsureCloudSeaComponents(GameObject root, Stats stats)
+        static void EnsureCloudSeaComponents(GameObject root, List<string> problems, Stats stats)
         {
             stats.ComponentsAdded += EnsureComponent<CloudSeaWater>(root);
             stats.ComponentsAdded += EnsureComponent<CloudSeaWeather>(root);
             stats.ComponentsAdded += EnsureComponent<CloudSeaLife>(root);
-            stats.ComponentsAdded += EnsureWaterLabOcean(root);
+            stats.ComponentsAdded += EnsureComponent<CloudSeaSunShadow>(root);
+
+            BakeBedGrid(root, problems);
+            SetBubbleShadows(root);
         }
 
         /// <summary>
-        /// WaterLab 复刻水三件套（幂等；2026-11-21 水体接入）：根上挂
-        /// <see cref="CloudSeaWaterLab"/>（海床地形源 + 域配置）与
-        /// <see cref="WaterLabSimulation"/>（模拟核，terrainProvider 指向前者、
-        /// domainCenter 同步），加 90 m ocean 网格子物体（<see cref="OceanMeshPath"/>
-        /// 网格 + <see cref="OceanMaterialPath"/> 材质，摆在水面上）。
-        /// 旧件退役口径：域外简版水（Cloud_Sea_Surface）**保留** everywhere——ocean 90 m 网格
-        /// 盖住整张可见海面（α 0.78 半透），简版水只做 90 m 外的远景兜底。
+        /// 从 <c>Cloud_Sea_Bed</c> 的网格顶点烘海床高度格，写进 <see cref="CloudSeaLife"/>。
+        /// 顶点先变换到 prefab 根的本地系（根的旋转缩放以后怎么变都不影响格子）。
         /// </summary>
-        static int EnsureWaterLabOcean(GameObject root)
+        static void BakeBedGrid(GameObject root, List<string> problems)
         {
-            // 焦散体绑定是幂等的，必须在「已接好就跳过」之前做：已有 prefab 的 ocean
-            // 材质资产也要补绑（材质是复用资产，不随 prefab 重建）。
-            BindOceanCaustics();
-
-            if (root.GetComponent<global::PirateCrew.WaterLab.WaterLabSimulation>() != null)
-                return 0;   // 已接好：不重建（网格/材质资产更新走手工重烘）。
-
-            var waterLab = root.AddComponent<CloudSeaWaterLab>();
-
-            var sim = root.AddComponent<global::PirateCrew.WaterLab.WaterLabSimulation>();
-            sim.computeShader = AssetDatabase.LoadAssetAtPath<ComputeShader>(WaterLabComputePath);
-            if (sim.computeShader == null)
-                throw new System.InvalidOperationException(LogTag + " 摸不到模拟核 compute："
-                    + WaterLabComputePath + "（water-lab 移植件未入库？）。");
-            sim.terrainProvider = waterLab;
-            sim.domainCenter = waterLab.DomainCenter;
-            sim.enablePhytoplankton = false;   // 战斗海面无夜光浮游生物；不注入也不报错
-            sim.tideAmplitudeScale = 0.25f;    // 浅海水柱 0.35–0.75 m：潮位收幅，水位稳定（场景适配）
-
-            // ---- ocean 网格（512² / **90 m** 见方，盖住相机可见海面 ±43 m 足迹）----
-            // 模拟域仍是 30 m（WaterLabRules.DomainSize，复刻参数不动）：网格超出域的部分
-            // 由 shader 钳位采样域缘 η/地形 → 平水延展；焦散/云影按世界坐标继续铺。
-            // 这样整个可见海面都是同一张 WaterLab 水，不再有 30 m 方形域界。
-            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(OceanMeshPath);
+            MeshRenderer bed = FindRendererByName(root, CloudSeaPath.SeaBedObjectName);
+            Mesh mesh = bed != null ? bed.GetComponent<MeshFilter>()?.sharedMesh : null;
             if (mesh == null)
             {
-                const int segments = 512;
-                const float oceanHalfSize = 45f;   // 90 m 见方
-                int verts = segments + 1;
-                float step = oceanHalfSize * 2f / segments;
-                mesh = new Mesh { name = "CloudWalkOcean" };
-                mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-                var vertices = new Vector3[verts * verts];
-                for (int z = 0; z < verts; z++)
-                    for (int x = 0; x < verts; x++)
-                        vertices[x + z * verts] = new Vector3(
-                            -oceanHalfSize + x * step, 0f,
-                            -oceanHalfSize + z * step);
-                var triangles = new int[segments * segments * 6];
-                int t = 0;
-                for (int z = 0; z < segments; z++)
-                {
-                    for (int x = 0; x < segments; x++)
-                    {
-                        int i0 = x + z * verts;
-                        int i1 = i0 + 1;
-                        int i2 = i0 + verts;
-                        int i3 = i2 + 1;
-                        triangles[t++] = i0; triangles[t++] = i2; triangles[t++] = i1;
-                        triangles[t++] = i1; triangles[t++] = i2; triangles[t++] = i3;
-                    }
-                }
-                mesh.vertices = vertices;
-                mesh.triangles = triangles;
-                mesh.RecalculateBounds();
-                AssetDatabase.CreateAsset(mesh, OceanMeshPath);
+                problems.Add("找不到海床网格 " + CloudSeaPath.SeaBedObjectName
+                    + "——海床高度格没烘，水下生物会退回固定深度带（可能扎进沙丘）。");
+                return;
             }
 
-            // ---- ocean 材质（细节法线 = 原作提取贴图）----
-            var material = AssetDatabase.LoadAssetAtPath<Material>(OceanMaterialPath);
-            if (material == null)
-            {
-                Shader shader = Shader.Find(WaterLabOceanShaderName);
-                if (shader == null)
-                    throw new System.InvalidOperationException(LogTag + " 摸不到 ocean shader："
-                        + WaterLabOceanShaderName + "（Resources/PixelartShaders/CloudSeaWaterLabOcean.shader 未导入？）。");
-                material = new Material(shader) { name = "Cloud_WaterLabOcean" };
-                var detail = AssetDatabase.LoadAssetAtPath<Texture2D>(DetailNormalPath);
-                if (detail != null)
-                    material.SetTexture("_WaterLabDetailNormal", detail);
-                else
-                    Debug.LogWarning(LogTag + " 原作细节法线贴图缺失（" + DetailNormalPath
-                        + "），水纹细节退化为灰常数——先跑 WaterLabSetup 自愈再重烘。");
-                AssetDatabase.CreateAsset(material, OceanMaterialPath);
-            }
+            Matrix4x4 toRoot = root.transform.worldToLocalMatrix * bed.localToWorldMatrix;
+            Vector3[] local = mesh.vertices;
+            for (int i = 0; i < local.Length; i++)
+                local[i] = toRoot.MultiplyPoint3x4(local[i]);
 
-            // 焦散体（库内 Demo 的 3D 焦散，WaterLabSand 同源）：ocean shader 把它加到
-            // 折射底图（水下沙面）上——在方法开头已统一补绑，见 BindOceanCaustics()。
-
-            var ocean = new GameObject(OceanObjectName);
-            ocean.transform.SetParent(root.transform, false);
-            ocean.transform.localPosition = new Vector3(
-                waterLab.DomainCenter.x, waterLab.OceanMeshWorldY, waterLab.DomainCenter.y);
-            ocean.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var oceanRenderer = ocean.AddComponent<MeshRenderer>();
-            oceanRenderer.sharedMaterial = material;
-            oceanRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;   // 水面不投影（实验室装配同口径）
-            return 2;   // 组件：CloudSeaWaterLab + WaterLabSimulation（子物体不计）
+            float[] heights = CloudSeaBedGrid.Build(local, BedGridCells, BedGridHalfSize);
+            float[] ground = CloudSeaBedGrid.BuildGround(local, BedGridCells, BedGridHalfSize);
+            root.GetComponent<CloudSeaLife>().SetBedHeightGrid(heights, BedGridCells, BedGridHalfSize, ground);
         }
 
         /// <summary>
-        /// ocean 材质补绑库内 3D 焦散体（WaterLabSand 同源资产，由
-        /// <see cref="global::PirateCrew.EditorTools.WaterLabCausticsImport"/> 自愈生成）。
-        /// 幂等：资产已存在就不重建，材质已绑就不写盘。
+        /// 水下生物的变换口径（硬门禁）：本地旋转必须是**纯偏航**、缩放必须是**等比**。
+        /// 关节矩阵按「物体空间 x = 前、y = 上、z = 侧、米」写，运行时也直接用「绕 Y 的欧拉角」给它定
+        /// 朝向——导入器一旦在对象上留下别的轴向后（比如改了 bakeAxisConversion），鱼会侧着躺、
+        /// 鳍绕着错的方向拍，而且不报错。所以在这里拦。顺带打印一行变换抽样，核对导入后的实际数值用。
         /// </summary>
-        static void BindOceanCaustics()
+        static void VerifyCreatureAxes(GameObject root, List<string> problems)
         {
-            var material = AssetDatabase.LoadAssetAtPath<Material>(OceanMaterialPath);
-            if (material == null)
-                return;
-            var caustics = global::PirateCrew.EditorTools.WaterLabCausticsImport.EnsureCausticsAsset();
-            if (caustics != null && material.GetTexture("_CausticsTex") != caustics)
+            int checkedCount = 0;
+            foreach (Transform tr in root.GetComponentsInChildren<Transform>(true))
             {
-                material.SetTexture("_CausticsTex", caustics);
-                UnityEditor.EditorUtility.SetDirty(material);
+                if (!tr.name.StartsWith(CloudSeaPath.CreaturePrefix, System.StringComparison.Ordinal))
+                    continue;
+                checkedCount++;
+                Vector3 up = tr.localRotation * Vector3.up;
+                Vector3 scale = tr.localScale;
+                bool yawOnly = up.y > 0.999f && Mathf.Abs(up.x) < 0.05f && Mathf.Abs(up.z) < 0.05f;
+                bool uniform = Mathf.Abs(scale.x - scale.y) < 1e-3f && Mathf.Abs(scale.x - scale.z) < 1e-3f;
+                if (!yawOnly || !uniform)
+                {
+                    problems.Add("水下生物 \"" + tr.name + "\" 的变换不是「纯偏航 + 等比缩放」（欧拉角 "
+                        + tr.localEulerAngles + "，缩放 " + scale + "）——顶点着色器的肢体形变与运行时的朝向"
+                        + "都按物体空间 x 前 / y 上 / z 侧写，这样的变换会让它们作用在错的轴上。");
+                }
+                if (checkedCount == 1)
+                {
+                    MeshFilter filter = tr.GetComponent<MeshFilter>();
+                    Mesh mesh = filter != null ? filter.sharedMesh : null;
+                    MeshRenderer sample = tr.GetComponent<MeshRenderer>();
+                    string channels = mesh == null
+                        ? "无网格"
+                        : (mesh.uv.Length > 0 ? "uv0" : "") + (mesh.uv2.Length > 0 ? " uv2" : "")
+                            + (mesh.uv3.Length > 0 ? " uv3" : "");
+                    Debug.Log(LogTag + " 生物变换抽样 " + tr.name + "：欧拉角 " + tr.localEulerAngles
+                        + "，缩放 " + scale + "，位置 " + tr.localPosition + "，世界包围盒尺寸 "
+                        + (sample != null ? sample.bounds.size.ToString() : "无渲染器")
+                        + "，网格 UV 通道 " + channels + "。");
+                }
             }
+            Debug.Log(LogTag + " 水下生物变换核对 " + checkedCount + " 个。");
+        }
 
-            // 沙地噪声图（原作 sandMap，WaterLabSetup 已自愈落盘）：焦散体采样的低频相位源。
-            const string sandNoisePath = "Assets/Art/Textures/WaterLab/SandNoise_Ref.png";
-            var sandMap = AssetDatabase.LoadAssetAtPath<Texture2D>(sandNoisePath);
-            if (sandMap != null && material.GetTexture("_WaterLabSandMap") != sandMap)
+        /// <summary>
+        /// 水下生物骨架的硬门禁（Blender ↔ Unity 的蒙皮契约，creature_kit.py ↔ CloudSeaRig）：
+        ///   · 每只生物对象下要有命名 <c>J&lt;关节号&gt;_…</c> 的关节空物体，位置 = 米级的静止位置、无旋转缩放；
+        ///   · 网格三套 UV 齐全：uv / uv2 是（关节号, 权重），uv3.x 是蒙皮标记；每个顶点的关节号必须是这只
+        ///     生物自己的关节、权重和为 1；
+        ///   · 全场景的关节号不能有两只生物重号（缓冲按关节号寻址）；父关节（名字里的 <c>P&lt;号&gt;</c>）
+        ///     必须是同一只生物里排在它之前的关节。
+        /// 运行时按同一套读法解骨架——这里不拦，错了的表现是鱼头和身体分家、或者两只生物互相带动。
+        /// </summary>
+        static void VerifyCreatureJoints(GameObject root, List<string> problems)
+        {
+            var owners = new Dictionary<int, string>();
+            int creatures = 0, joints = 0, weighted = 0;
+            foreach (Transform tr in root.GetComponentsInChildren<Transform>(true))
             {
-                material.SetTexture("_WaterLabSandMap", sandMap);
-                UnityEditor.EditorUtility.SetDirty(material);
+                if (!tr.name.StartsWith(CloudSeaPath.CreaturePrefix, System.StringComparison.Ordinal))
+                    continue;
+                creatures++;
+
+                var own = new List<KeyValuePair<int, Transform>>();
+                foreach (Transform child in tr)
+                {
+                    if (!child.name.StartsWith("J", System.StringComparison.Ordinal))
+                        continue;
+                    int underscore = child.name.IndexOf('_');
+                    int index;
+                    if (underscore <= 1
+                        || !int.TryParse(child.name.Substring(1, underscore - 1), out index) || index < 0)
+                    {
+                        problems.Add("水下生物 " + tr.name + " 身下的关节空物体名字不是 J<关节号>_…：" + child.name);
+                        continue;
+                    }
+                    own.Add(new KeyValuePair<int, Transform>(index, child));
+                }
+                if (own.Count == 0)
+                {
+                    problems.Add("水下生物 " + tr.name + " 身下没有关节空物体（J<关节号>_…）——Blender 侧没给"
+                        + "它登记关节（creature_kit.bind_joints），它的骨架驱动不了。");
+                    continue;
+                }
+                own.Sort((a, b) => a.Key.CompareTo(b.Key));
+
+                var seen = new HashSet<int>();
+                foreach (KeyValuePair<int, Transform> joint in own)
+                {
+                    int index = joint.Key;
+                    Transform empty = joint.Value;
+                    string owner;
+                    if (owners.TryGetValue(index, out owner) && owner != tr.name)
+                        problems.Add("关节号 " + index + " 被 " + owner + " 和 " + tr.name + " 重号（蒙皮缓冲按关节号寻址）。");
+                    owners[index] = tr.name;
+                    seen.Add(index);
+                    joints++;
+
+                    string rest = empty.name.Substring(empty.name.IndexOf('_') + 1);
+                    if (rest.StartsWith("P", System.StringComparison.Ordinal))
+                    {
+                        int next = rest.IndexOf('_');
+                        int parent;
+                        if (next <= 1 || !int.TryParse(rest.Substring(1, next - 1), out parent) || !seen.Contains(parent))
+                            problems.Add("水下生物 " + tr.name + " 的关节 " + empty.name + " 的父关节不是同一只生物里"
+                                + "排在它之前的关节。");
+                    }
+                    if (Quaternion.Angle(empty.localRotation, Quaternion.identity) > 0.01f
+                        || (empty.localScale - Vector3.one).magnitude > 0.001f || empty.localPosition.magnitude > 64f)
+                        problems.Add("水下生物 " + tr.name + " 的关节 " + empty.name + " 的变换不是「纯平移、米级」："
+                            + "位置 " + empty.localPosition + "，欧拉角 " + empty.localEulerAngles + "，缩放 " + empty.localScale
+                            + "——Blender 导出嵌套 / 带旋转缩放的空物体会换一套单位约定。");
+                }
+
+                MeshFilter filter = tr.GetComponent<MeshFilter>();
+                Mesh mesh = filter != null ? filter.sharedMesh : null;
+                if (mesh == null)
+                    continue;
+                Vector2[] a = mesh.uv;
+                Vector2[] b = mesh.uv2;
+                Vector2[] marker = mesh.uv3;
+                if (a.Length != mesh.vertexCount || b.Length != mesh.vertexCount || marker.Length != mesh.vertexCount)
+                {
+                    problems.Add("水下生物 " + tr.name + " 的网格三套 UV 不齐（uv " + a.Length + " / uv2 "
+                        + b.Length + " / uv3 " + marker.Length + "，顶点 " + mesh.vertexCount + "）。");
+                    continue;
+                }
+                int faults = 0;
+                for (int i = 0; i < mesh.vertexCount && faults < 3; i++)
+                {
+                    string fault = null;
+                    int ia = Mathf.RoundToInt(a[i].x);
+                    int ib = Mathf.RoundToInt(b[i].x);
+                    float wa = a[i].y;
+                    float wb = b[i].y;
+                    if (marker[i].x < 0.5f)
+                        fault = "没有蒙皮标记";
+                    else if (Mathf.Abs(a[i].x - ia) > 0.01f || Mathf.Abs(b[i].x - ib) > 0.01f)
+                        fault = "关节号不是整数（" + a[i].x + ", " + b[i].x + "）——导入时 UV 精度丢了";
+                    else if (!seen.Contains(ia) || (wb > 1e-4f && !seen.Contains(ib)))
+                        fault = "引用了不属于这只生物的关节（" + ia + ", " + ib + "）";
+                    else if (wa < -1e-3f || wb < -1e-3f || Mathf.Abs(wa + wb - 1f) > 0.02f)
+                        fault = "权重和不为 1（" + wa + " + " + wb + "）";
+                    if (fault != null)
+                    {
+                        faults++;
+                        problems.Add("水下生物 " + tr.name + " 的第 " + i + " 个顶点" + fault + "。");
+                    }
+                }
+                weighted += mesh.vertexCount;
             }
+            Debug.Log(LogTag + " 水下生物骨架核对：" + creatures + " 只、" + joints + " 个关节、" + weighted
+                + " 个带权顶点。");
+        }
+
+        /// <summary>
+        /// 气泡柱不投影：水下物开了真投影之后，一串气泡会在海床上撒一圈黑点。
+        /// 写在渲染器上（随 prefab 落盘），不靠运行时脚本每局去关。
+        /// </summary>
+        static void SetBubbleShadows(GameObject root)
+        {
+            foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (renderer.gameObject.name.StartsWith(CloudSeaPath.BubblePrefix, System.StringComparison.Ordinal))
+                    renderer.shadowCastingMode = ShadowCastingMode.Off;
+            }
+        }
+
+        static MeshRenderer FindRendererByName(GameObject root, string objectName)
+        {
+            foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (renderer.gameObject.name == objectName)
+                    return renderer;
+            }
+            return null;
         }
 
         static int EnsureComponent<T>(GameObject root) where T : Component
@@ -622,9 +823,10 @@ namespace PirateCrew.EditorTools
         // ------------------------------------------------------------------
 
         /// <summary>
-        /// 对保存后的 prefab 资产复检每个材质槽：透明件必须走透明趟 shader 且队列落透明区间，
-        /// 其余槽必须是物体 shader（不进 G-buffer 的槽 = 该带像素内容未定义，混进来花屏且无报错，
-        /// PixelartStageKit.AssertObjectShaderOnly 同一条硬门禁）。
+        /// 对保存后的 prefab 资产复检每个材质槽：槽上的 shader 必须是其对象的着色路线该有的那支
+        /// （判据与换装同一份 <see cref="CloudSeaMaterialRoute"/>）。异物 shader = 那带像素内容
+        /// 未定义 / 不进对应通道，混进来花屏且不报错（PixelartStageKit.AssertObjectShaderOnly
+        /// 同一条硬门禁）。
         /// </summary>
         static void VerifySavedPrefab(List<string> problems)
         {
@@ -638,8 +840,12 @@ namespace PirateCrew.EditorTools
             int total = 0;
             int opaque = 0;
             int transparent = 0;
+            int clearWater = 0;
+            int seabed = 0;
+            int underwater = 0;
             foreach (MeshRenderer renderer in prefab.GetComponentsInChildren<MeshRenderer>(true))
             {
+                CloudSeaRoute route = CloudSeaMaterialRoute.Of(renderer.name);
                 Material[] slots = renderer.sharedMaterials;
                 for (int i = 0; i < slots.Length; i++)
                 {
@@ -652,40 +858,61 @@ namespace PirateCrew.EditorTools
 
                     total++;
                     string shaderName = mat.shader != null ? mat.shader.name : string.Empty;
-                    if (renderer.name == OceanObjectName)
+                    switch (route)
                     {
-                        // WaterLab ocean 子物体：双趟透明 shader（overlay/前向收件），
-                        // 不进 Cast G-buffer（透明队列被 Cast 渲染器的 opaque 过滤挡住）。
-                        if (shaderName == "PirateCrew/CloudSea/WaterLabOcean")
-                            transparent++;
-                        else
-                            problems.Add("ocean 子物体 \"" + renderer.name + "\" shader 口径不对（"
-                                + shaderName + "），应为 PirateCrew/CloudSea/WaterLabOcean。");
-                    }
-                    else if (TransparentNames.Contains(mat.name))
-                    {
-                        if (shaderName == CloudSeaPath.WaterShaderName
-                            && mat.renderQueue >= PixelartPath.TransparentQueueMin)
-                            transparent++;
-                        else
-                            problems.Add("透明件 \"" + mat.name + "\" 口径不对（shader=" + shaderName
-                                + "，队列=" + mat.renderQueue + "），应为 " + CloudSeaPath.WaterShaderName
-                                + " 且队列 ≥ " + PixelartPath.TransparentQueueMin + "。");
-                    }
-                    else if (shaderName == PixelartPath.ObjectShaderName)
-                    {
-                        opaque++;
-                    }
-                    else
-                    {
-                        problems.Add("异物 shader：\"" + renderer.name + "\" 挂 \"" + mat.name
-                            + "\"（" + shaderName + "）——不进 G-buffer，那带像素内容未定义。");
+                        case CloudSeaRoute.ClearWater:
+                            if (shaderName == CloudSeaPath.ClearWaterShaderName && mat.renderQueue >= TransparentQueueStandard)
+                                clearWater++;
+                            else
+                                problems.Add("海面 \"" + renderer.name + "\" 的材质 \"" + mat.name
+                                    + "\" 口径不对（shader=" + shaderName + "，队列=" + mat.renderQueue + "），应为 "
+                                    + CloudSeaPath.ClearWaterShaderName + " 且队列 ≥ " + TransparentQueueStandard + "。");
+                            break;
+
+                        case CloudSeaRoute.Seabed:
+                            if (shaderName == CloudSeaPath.SeabedShaderName)
+                                seabed++;
+                            else
+                                problems.Add("海床 \"" + renderer.name + "\" 的材质 \"" + mat.name
+                                    + "\" 口径不对（" + shaderName + "），应为 " + CloudSeaPath.SeabedShaderName + "。");
+                            break;
+
+                        case CloudSeaRoute.Underwater:
+                            if (shaderName == CloudSeaPath.UnderwaterShaderName)
+                                underwater++;
+                            else
+                                problems.Add("水下件 \"" + renderer.name + "\" 的材质 \"" + mat.name
+                                    + "\" 口径不对（" + shaderName + "），应为 " + CloudSeaPath.UnderwaterShaderName + "。");
+                            break;
+
+                        default:
+                            if (TransparentNames.Contains(mat.name))
+                            {
+                                if (shaderName == CloudSeaPath.WaterShaderName
+                                    && mat.renderQueue >= PixelartPath.TransparentQueueMin)
+                                    transparent++;
+                                else
+                                    problems.Add("透明件 \"" + mat.name + "\" 口径不对（shader=" + shaderName
+                                        + "，队列=" + mat.renderQueue + "），应为 " + CloudSeaPath.WaterShaderName
+                                        + " 且队列 ≥ " + PixelartPath.TransparentQueueMin + "。");
+                            }
+                            else if (shaderName == PixelartPath.ObjectShaderName)
+                            {
+                                opaque++;
+                            }
+                            else
+                            {
+                                problems.Add("异物 shader：\"" + renderer.name + "\" 挂 \"" + mat.name
+                                    + "\"（" + shaderName + "）——不进 G-buffer，那带像素内容未定义。");
+                            }
+                            break;
                     }
                 }
             }
 
             Debug.Log(LogTag + " 口径复检：" + total + " 个材质槽（物体 shader " + opaque
-                + " / 透明趟 " + transparent + "）。");
+                + " / 透明趟 " + transparent + " / 海面 " + clearWater + " / 海床 " + seabed
+                + " / 水下生态 " + underwater + "）。");
         }
 
         // ------------------------------------------------------------------

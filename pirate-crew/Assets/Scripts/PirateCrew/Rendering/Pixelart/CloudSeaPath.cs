@@ -1,30 +1,49 @@
 namespace PirateCrew.Rendering.Pixelart
 {
     /// <summary>
-    /// 云端漫步场景重做（2026-11-11）的共享契约：shader 名、对象名、材质名前缀。
+    /// 云端漫步场景的共享契约：shader 名、对象名、材质名前缀。
     ///
     /// 【为什么集中】FBX / 烘焙器 / 运行时组件三方靠字符串对齐（对象名找鱼群/停栖鸥、
     /// 材质名换装、shader 名换透明趟）。字符串契约拼错是静默失效，只在这一处写字面量。
     /// </summary>
     public static class CloudSeaPath
     {
-        /// <summary>海水/水洼双趟透明 shader：CellShade 走 PixelartTransparent 趟，PostLine 走标准前向透明趟。</summary>
+        /// <summary>云台水洼 / 水壁 / 玻璃的透明 shader（海面不归它管，走 <see cref="ClearWaterShaderName"/>）。</summary>
         public const string WaterShaderName = "PirateCrew/CloudSea/Water";
 
-        /// <summary>太阳雨/光柱/彩虹/涟漪的双趟透明 shader（与水体同一套双链口径）。</summary>
+        /// <summary>清澈海面透明 shader（只挂在 <see cref="SeaSurfaceObjectName"/> 上）。</summary>
+        public const string ClearWaterShaderName = "PirateCrew/CloudSea/CloudSeaClearWater";
+
+        /// <summary>海床 shader（程序沙地 + 焦散；只挂在 <see cref="SeaBedObjectName"/> 上）。</summary>
+        public const string SeabedShaderName = "PirateCrew/CloudSea/CloudSeaSeabed";
+
+        /// <summary>水下生态 shader（海草 / 珊瑚 / 岩石 / 鱼群 / 大鱼 / 水母 / 蟹 / 海星：平面两档卡通色、
+        /// 投影、不描边；肢体形变在顶点着色器里）。</summary>
+        public const string UnderwaterShaderName = "PirateCrew/CloudSea/CloudSeaUnderwater";
+
+        /// <summary>涟漪同心环透明 shader。</summary>
+        public const string RippleShaderName = "PirateCrew/CloudSea/CloudSeaRipple";
+
+        /// <summary>太阳雨/光柱/彩虹的双趟透明 shader。</summary>
         public const string RainShaderName = "PirateCrew/CloudSea/CloudSeaRain";
 
         /// <summary>水面对象名（FBX 内）。</summary>
         public const string SeaSurfaceObjectName = "Cloud_Sea_Surface";
 
-        /// <summary>海床对象名前缀。</summary>
+        /// <summary>海床对象名（FBX 内；整片起伏沙丘是一个网格）。</summary>
+        public const string SeaBedObjectName = "Cloud_Sea_Bed";
+
+        /// <summary>海底静物对象名前缀（海草 / 岩石 / 珊瑚 / 沉积物，与海床、水面共用前缀）。</summary>
         public const string SeaBedPrefix = "Cloud_Sea_";
 
-        /// <summary>鱼群对象名前缀（每群一个独立对象）。</summary>
-        public const string FishSchoolPrefix = "Cloud_FishSchool_";
+        /// <summary>
+        /// 水下生物对象名前缀：完整名 = 前缀 + 物种 + 下划线 + 序号（每只 / 每群一个独立对象）。
+        /// 物种名与行为族的表在 <c>CloudSeaCreatureSpecies</c>；这个前缀同时决定它们走水下生态 shader。
+        /// </summary>
+        public const string CreaturePrefix = "Cloud_Creature_";
 
-        /// <summary>海底螃蟹对象名前缀（每只一个独立对象；CloudSeaLife 做横向爬行）。</summary>
-        public const string CrabPrefix = "Cloud_Crab_";
+        /// <summary>海底气泡柱对象名前缀。</summary>
+        public const string BubblePrefix = "Cloud_Bubbles_";
 
         /// <summary>停栖海鸥对象名前缀。</summary>
         public const string GullPerchPrefix = "Cloud_GullPerch_";

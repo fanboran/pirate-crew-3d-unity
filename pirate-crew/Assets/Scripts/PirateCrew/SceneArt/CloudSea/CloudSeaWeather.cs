@@ -17,6 +17,8 @@ namespace PirateCrew.SceneArt.CloudSea
     /// 普通相机走标准前向透明趟。两趟互斥由本组件每帧下发的闸门全局
     /// <c>_CloudSeaRainPixelDomain</c> 保证（判据 = RenderStyleState 是 CellShade 且 rig 在场）；
     /// 不判的话 CellShade 的叠加相机会把同一件按全分辨率再画一遍（重影 + 颗粒错档）。
+    /// 涟漪不共用雨 shader，走 <see cref="CloudSeaPath.RippleShaderName"/>（像素同心环，单趟
+    /// 前向透明）。
     ///
     /// 【成本契约】所有对象运行时创建、无 Collider、不写场景序列化；雨粒子 ≤1500；
     /// Update 每帧零堆分配（结构体数学 + 缓存的属性 ID，颜色是 struct 不装箱）；
@@ -112,9 +114,9 @@ namespace PirateCrew.SceneArt.CloudSea
 
         // ==================== 涟漪 ====================
 
-        [Header("涟漪（水洼/海面扩散圆环）")]
+        [Header("涟漪（水洼 / 海面扩散的像素同心环）")]
         [SerializeField] bool rippleEnabled = true;
-        [Tooltip("每个点一个涟漪：默认主云台水洼 2 处 + 海面 3 处（y = 表面 + 0.03 防 z-fight）。装配期按实际云台顶面微调。")]
+        [Tooltip("每个点一个涟漪：默认云台水洼 2 处 + 海面 3 处 + 云瀑落水点 1 处（y = 表面 + 0.03 防 z-fight）。装配期按实际云台顶面微调。")]
         [SerializeField] Vector3[] ripplePoints =
         {
             new Vector3(0f, 7.53f, 0f),
@@ -122,15 +124,20 @@ namespace PirateCrew.SceneArt.CloudSea
             new Vector3(5f, -0.37f, 4f),
             new Vector3(-6f, -0.37f, -3f),
             new Vector3(2f, -0.37f, -7f),
+            new Vector3(15f, -0.37f, -1f),
         };
-        [SerializeField] float rippleRadiusMin = 0.35f;
-        [SerializeField] float rippleRadiusMax = 0.70f;
-        [Tooltip("单圈生命期随机范围（秒），之后隔一小段空档再起。")]
+        [Tooltip("环扩散到的最大半径（米）。")]
+        [SerializeField] float rippleRadius = 0.70f;
+        [Tooltip("环宽（艺术像素）。")]
+        [SerializeField, Range(1f, 4f)] float rippleRingWidth = 1.5f;
+        [Tooltip("一圈从出生到扩散满的时长随机范围（秒），之后隔一段空档再起。")]
         [SerializeField] float rippleLifeMin = 0.6f;
         [SerializeField] float rippleLifeMax = 1.5f;
+        [Tooltip("环消失后的空档（占一圈时长的比例）。")]
+        [SerializeField, Range(0f, 2f)] float rippleGap = 0.7f;
         [SerializeField] Color rippleColor = new Color(0.78f, 0.95f, 0.95f);
-        [SerializeField, Range(0f, 1f)] float rippleAlpha = 0.18f;
-        [SerializeField, Range(8, 96)] int rippleSegments = 48;
+        [Tooltip("环的不透明度（扩散中按档位离散渐隐）。")]
+        [SerializeField, Range(0f, 1f)] float rippleAlpha = 0.7f;
 
         // ==================== 云影调制（仅 PostLine 链有云影） ====================
 
@@ -154,9 +161,6 @@ namespace PirateCrew.SceneArt.CloudSea
         {
             public Transform Transform;
             public Material Material;
-            public float Life;
-            public float Cycle;
-            public float Offset;
         }
 
         GameObject _rainGameObject;
@@ -191,19 +195,19 @@ namespace PirateCrew.SceneArt.CloudSea
             PushChainGate();
 
             Shader shader = null;
-            bool needShader = rainEnabled || beamEnabled || rainbowEnabled || rippleEnabled;
+            bool needShader = rainEnabled || beamEnabled || rainbowEnabled;
             if (needShader)
             {
                 shader = PixelartShaders.Load(RainShaderName);
                 if (shader == null)
                     Log.Error("[CloudSeaWeather] 雨天气 shader \"" + RainShaderName
-                        + "\" 摸不到——四件视觉全部跳过（云影调制不受影响）。");
+                        + "\" 摸不到——雨 / 光柱 / 彩虹三件视觉全部跳过（涟漪与云影调制不受影响）。");
             }
 
             if (rainEnabled && shader != null) BuildRain(shader);
             if (beamEnabled && shader != null) BuildBeams(shader);
             if (rainbowEnabled && shader != null) BuildRainbow(shader);
-            if (rippleEnabled && shader != null) BuildRipples(shader);
+            if (rippleEnabled) BuildRipples();
 
             // 彩虹按计划表首秀（静默期先空场，"偶尔淡彩虹"）。
             _rainbowNextShow = Time.time + Random.Range(rainbowMinInterval, rainbowMaxInterval);
@@ -437,60 +441,62 @@ namespace PirateCrew.SceneArt.CloudSea
             return c;
         }
 
-        /// <summary>涟漪：共享圆环带 mesh（XZ 平面，u 径向配 _EdgeFade），逐点材质驱动半径与渐隐。</summary>
-        void BuildRipples(Shader shader)
+        // 涟漪 shader 的属性名（只有这一处写字面量）。
+        static readonly int RingColorId = Shader.PropertyToID("_RingColor");
+        static readonly int RingAlphaId = Shader.PropertyToID("_RingAlpha");
+        static readonly int RingWidthId = Shader.PropertyToID("_RingWidth");
+        static readonly int RingRadiusId = Shader.PropertyToID("_Radius");
+        static readonly int LoopPeriodId = Shader.PropertyToID("_LoopPeriod");
+        static readonly int LoopGapId = Shader.PropertyToID("_LoopGap");
+        static readonly int LoopPhaseId = Shader.PropertyToID("_Phase");
+
+        /// <summary>
+        /// 涟漪：共享一张单位方片（XZ 平面，半径 1 = <see cref="rippleRadius"/> 米）。扩散 / 渐隐 /
+        /// 空档全在 shader 里按时间走（CloudSeaRipple 的自动循环）——建完之后每帧零开销。
+        /// </summary>
+        void BuildRipples()
         {
             int count = ripplePoints == null ? 0 : ripplePoints.Length;
             if (count == 0)
                 return;
 
-            int segments = Mathf.Max(8, rippleSegments);
-            const float InnerRatio = 0.72f;   // 环带内圈半径占比：带厚 = 28% × 半径，随扩散同步变粗
-            _rippleMesh = new Mesh { name = "CloudSeaWeather_RippleRing" };
-            Vector3[] verts = new Vector3[segments * 2];
-            Vector2[] uvs = new Vector2[verts.Length];
-            Color[] colors = new Color[verts.Length];
-            for (int i = 0; i < segments; i++)
+            Shader shader = PixelartShaders.Load(CloudSeaPath.RippleShaderName);
+            if (shader == null)
             {
-                float angle = Tau * i / segments;
-                float cos = Mathf.Cos(angle);
-                float sin = Mathf.Sin(angle);
-                int inner = i * 2;
-                int outer = i * 2 + 1;
-                verts[inner] = new Vector3(cos * InnerRatio, 0f, sin * InnerRatio);
-                verts[outer] = new Vector3(cos, 0f, sin);
-                uvs[inner] = new Vector2(0f, 0f);
-                uvs[outer] = new Vector2(1f, 0f);
-                colors[inner] = Color.white;
-                colors[outer] = Color.white;
+                Log.Error("[CloudSeaWeather] 涟漪 shader \"" + CloudSeaPath.RippleShaderName
+                    + "\" 摸不到——涟漪跳过（其余天气件不受影响）。");
+                return;
             }
-            int[] tris = new int[segments * 6];
-            for (int i = 0; i < segments; i++)
+
+            _rippleMesh = new Mesh { name = "CloudSeaWeather_RippleQuad" };
+            _rippleMesh.vertices = new[]
             {
-                int a = i * 2;
-                int b = i * 2 + 1;
-                int next = (i + 1) % segments * 2;
-                int c = next;
-                int d = next + 1;
-                int t = i * 6;
-                tris[t] = a; tris[t + 1] = b; tris[t + 2] = c;
-                tris[t + 3] = b; tris[t + 4] = d; tris[t + 5] = c;
-            }
-            _rippleMesh.vertices = verts;
-            _rippleMesh.uv = uvs;
-            _rippleMesh.colors = colors;
-            _rippleMesh.triangles = tris;
+                new Vector3(-1f, 0f, -1f), new Vector3(1f, 0f, -1f),
+                new Vector3(1f, 0f, 1f), new Vector3(-1f, 0f, 1f),
+            };
+            _rippleMesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
             _rippleMesh.RecalculateBounds();
 
             _ripples = new RippleVisual[count];
             for (int i = 0; i < count; i++)
             {
-                Material material = MakeMaterial(shader, rippleColor, rippleAlpha, 1f,
-                    BlendMode.SrcAlpha, BlendMode.OneMinusSrcAlpha, tipFade: 0f, edgeFade: 1f);
+                // 一个循环周期 = 一圈时长 × (1 + 空档)：shader 的扩散进度在一圈时长内走满，
+                // 其余时间环已出画，隔一段再重起。
+                float life = Random.Range(rippleLifeMin, rippleLifeMax);
+                Material material = new Material(shader) { name = "CloudSeaWeather_Ripple" };
+                material.SetColor(RingColorId, rippleColor);
+                material.SetFloat(RingAlphaId, rippleAlpha);
+                material.SetFloat(RingWidthId, rippleRingWidth);
+                material.SetFloat(RingRadiusId, rippleRadius);
+                material.SetFloat(LoopPeriodId, life * (1f + rippleGap));
+                material.SetFloat(LoopGapId, rippleGap);
+                material.SetFloat(LoopPhaseId, Random.value);   // 各圈相位错开，不同起
+                material.renderQueue = TransparentQueueStandard;
 
                 GameObject go = new GameObject("CloudSeaWeather_Ripple" + i);
                 go.transform.SetParent(transform, false);
                 go.transform.localPosition = ripplePoints[i];
+                go.transform.localScale = new Vector3(rippleRadius, 1f, rippleRadius);
                 MeshFilter filter = go.AddComponent<MeshFilter>();
                 filter.sharedMesh = _rippleMesh;
                 MeshRenderer meshRenderer = go.AddComponent<MeshRenderer>();
@@ -498,14 +504,10 @@ namespace PirateCrew.SceneArt.CloudSea
                 meshRenderer.shadowCastingMode = ShadowCastingMode.Off;
                 meshRenderer.receiveShadows = false;
 
-                float life = Random.Range(rippleLifeMin, rippleLifeMax);
                 _ripples[i] = new RippleVisual
                 {
                     Transform = go.transform,
                     Material = material,
-                    Life = life,
-                    Cycle = life * 1.7f,                 // 生命期后留 ~0.7 份空档，圈与圈错落
-                    Offset = i * 0.83f + Random.value,   // 初始相位错开，五圈不同起
                 };
             }
         }
@@ -531,14 +533,12 @@ namespace PirateCrew.SceneArt.CloudSea
             float t = Time.time;
             PushChainGate();
 
-            // 水面 ocean shader 读参照库云影全局族：CellShade 链没有 PostLine 的录制趟，
-            // 每帧在这里补推同一组常量（PostLine 链随后自己的 cmd 推流覆盖为同值）。
+            // 云影全局族由 PostLineEnvironment 在录制趟里每帧推；这里在 Update 里先补推同一组常量，
             // 顺序必须在 UpdateCloudShadow 之前——否则会把调制值压回基线。
             global::PirateCrew.Rendering.PostLine.PostLineEnvironment.PushCloudShadowGlobals();
 
             if (_beams != null) UpdateBeams(t);
             if (_rainbowMaterial != null) UpdateRainbow(t);
-            if (_ripples != null) UpdateRipples(t);
             if (cloudShadowModulation) UpdateCloudShadow(t);
         }
 
@@ -597,31 +597,6 @@ namespace PirateCrew.SceneArt.CloudSea
             float envelope = Mathf.Clamp01(Mathf.Min(k, 1f - k) * 6f);
             _rainbowMaterial.SetColor(ColorId, new Color(
                 rainbowColor.r, rainbowColor.g, rainbowColor.b, rainbowAlpha * envelope));
-        }
-
-        void UpdateRipples(float t)
-        {
-            for (int i = 0; i < _ripples.Length; i++)
-            {
-                RippleVisual ripple = _ripples[i];
-                if (ripple.Transform == null || ripple.Material == null)
-                    continue;
-
-                float cycleTime = Mathf.Repeat(t + ripple.Offset, ripple.Cycle);
-                float k = cycleTime / ripple.Life;
-                if (k >= 1f)
-                {
-                    // 空档期：缩到 ε 跳过光栅化（alpha 0 仍会走片元，没必要）。
-                    ripple.Transform.localScale = new Vector3(0.001f, 1f, 0.001f);
-                    continue;
-                }
-
-                float radius = Mathf.Lerp(rippleRadiusMin, rippleRadiusMax, k);
-                float alpha = rippleAlpha * Mathf.Pow(1f - k, 1.6f);   // 前快后慢的渐隐
-                ripple.Transform.localScale = new Vector3(radius, 1f, radius);
-                ripple.Material.SetColor(ColorId, new Color(
-                    rippleColor.r, rippleColor.g, rippleColor.b, alpha));
-            }
         }
 
         void UpdateCloudShadow(float t)
