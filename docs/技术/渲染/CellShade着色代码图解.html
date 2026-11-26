@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sloane URP 像素管线 · 着色代码图解</title>
+<style>
+:root{
+  --bg:#14110f; --panel:#1d1815; --panel2:#171310; --ink:#e9e1d5; --muted:#a99b87;
+  --accent:#e0a45c; --accent2:#8fbf6a; --line:#3a312a; --code:#0e0c0a; --warn:#d98b6a;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.78 "Microsoft YaHei","PingFang SC","Noto Sans CJK SC",system-ui,sans-serif;}
+#toc{position:fixed;left:0;top:0;bottom:0;width:262px;overflow:auto;background:var(--panel2);
+  border-right:1px solid var(--line);padding:20px 14px 40px}
+#toc .brand{font-size:15px;font-weight:700;color:var(--accent);letter-spacing:.5px;margin:0 0 4px 8px}
+#toc .sub{font-size:11.5px;color:var(--muted);margin:0 0 16px 8px;line-height:1.5}
+#toc a{display:block;color:var(--muted);text-decoration:none;padding:5px 9px;border-left:2px solid transparent;
+  font-size:13px;border-radius:0 5px 5px 0}
+#toc a:hover{color:var(--ink);background:#221c17}
+#toc a.active{color:var(--accent);border-left-color:var(--accent);background:#261f19}
+main{margin-left:262px;max-width:1180px;padding:34px 44px 140px}
+h1{font-size:30px;line-height:1.35;margin:0 0 8px;color:#fff}
+h2{font-size:23px;margin:0 0 4px;color:var(--accent);scroll-margin-top:18px}
+h3{font-size:18px;margin:26px 0 8px;color:#f0d3a8}
+h4{font-size:15.5px;margin:18px 0 6px;color:var(--accent2)}
+p{margin:9px 0}
+.lead{color:var(--muted);font-size:15px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:24px 28px;margin:28px 0;
+  box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.kicker{font-size:12px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+.conclusion{border-left:4px solid var(--accent2);background:#1a2317;padding:12px 16px;border-radius:0 7px 7px 0;
+  margin:16px 0;font-size:14.5px}
+.conclusion b{color:#bfe39b}
+.warn{border-left:4px solid var(--warn);background:#2a1c15;padding:12px 16px;border-radius:0 7px 7px 0;margin:16px 0}
+.five{display:grid;grid-template-columns:112px 1fr;gap:4px 14px;margin:14px 0;font-size:14px}
+.five dt{color:var(--accent);font-weight:600;padding-top:2px}
+.five dd{margin:0;color:#d8ccbb}
+code{font-family:Consolas,"Cascadia Mono",monospace;font-size:.92em;background:#2a231d;color:#f2c98d;
+  padding:1px 5px;border-radius:4px}
+pre{background:var(--code);border:1px solid var(--line);border-radius:8px;padding:13px 16px;overflow:auto;
+  font:12.5px/1.62 Consolas,"Cascadia Mono",monospace;color:#cfc3b2;margin:10px 0}
+pre .hl{display:inline-block;width:100%;background:#33260f;color:#ffd28a;box-shadow:inset 3px 0 0 #e0a45c}
+pre .cm{color:#7f8c6a}
+pre .file{display:block;color:#8d8173;font-size:11.5px;margin-bottom:7px;letter-spacing:.3px}
+.figs{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:14px;margin:16px 0}
+figure{margin:0;background:#110e0c;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+figure img{width:100%;display:block;cursor:zoom-in;image-rendering:pixelated;background:#000}
+figure.wide{grid-column:1/-1}
+figcaption{padding:8px 10px;font-size:12.2px;color:var(--muted);line-height:1.55}
+figcaption b{color:#e7d6bd;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:12.8px;margin:14px 0;background:#181411;
+  border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{border-bottom:1px solid #2c251f;padding:8px 9px;text-align:left;vertical-align:top}
+th{background:#241d17;color:var(--accent);font-weight:600;font-size:12.5px}
+tr:last-child td{border-bottom:none}
+td code{font-size:11.5px;padding:0 3px}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:99px;border:1px solid var(--line);
+  color:var(--muted);margin-right:4px}
+.tag.ok{color:#a9d486;border-color:#3d5a2e}
+.tag.no{color:#e3a17f;border-color:#5d3526}
+.tag.unk{color:#c9b98a;border-color:#5a4d2c}
+.small{font-size:12.4px;color:var(--muted)}
+ul,ol{margin:8px 0 8px 22px;padding:0}
+li{margin:5px 0}
+.hero{border:1px solid var(--line);border-radius:12px;padding:26px 30px;background:
+  radial-gradient(1200px 300px at 20% -20%,#2b2117 0%,transparent 60%),var(--panel);margin-bottom:26px}
+.hero h1 span{color:var(--accent)}
+.legend{display:flex;flex-wrap:wrap;gap:10px 18px;font-size:12.3px;color:var(--muted);margin:10px 0}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.94);display:none;align-items:center;justify-content:center;
+  z-index:999;cursor:zoom-out}
+#zoom img{max-width:95vw;max-height:95vh;image-rendering:pixelated;border:1px solid #444}
+#zoom .cap{position:absolute;bottom:16px;left:0;right:0;text-align:center;color:#cfc3b2;font-size:13px}
+svg.diagram{width:100%;height:auto;display:block;margin:12px 0;background:#100d0b;border:1px solid var(--line);
+  border-radius:9px}
+@media(max-width:900px){
+  #toc{position:static;width:auto;height:auto;border-right:none;border-bottom:1px solid var(--line)}
+  main{margin-left:0;padding:20px 18px 90px}
+  .five{grid-template-columns:88px 1fr}
+}
+</style>
+</head>
+<body>
+<nav id="toc">
+  <div class="brand">Sloane URP 像素管线</div>
+  <div class="sub">逐模块着色代码图解 · 多组实测图<br>离线单页 · 代码行号可 grep</div>
+  <a href="#s1">1 · 阅读指南与管线总览</a>
+  <a href="#s2">2 · 相机构建与单位格取整</a>
+  <a href="#s3">3 · 对象趟：G-buffer 八缓冲</a>
+  <a href="#s4">4 · 连通域：深度预测与断开边</a>
+  <a href="#s5">5 · 着色四趟</a>
+  <a href="#s5-1">5.1 Diffuse 分档</a>
+  <a href="#s5-2">5.2 Specular 高光</a>
+  <a href="#s5-3">5.3 GI 环境光</a>
+  <a href="#s5-4">5.4 RimLight 边缘光</a>
+  <a href="#s6">6 · 合成与颜色校正</a>
+  <a href="#s7">7 · Outline 特性</a>
+  <a href="#s7-1">7.1 两种样式与视频判别</a>
+  <a href="#s8">8 · 参数速查表</a>
+  <a href="#s9">9 · 实测图鉴 A~L</a>
+  <a href="#s10">10 · 事实与坑</a>
+  <a href="#s11">11 · 术语表</a>
+</nav>
+
+<main>
+<div class="hero">
+  <div class="kicker">SL0ANE / SloanePixelartRenderPipeline · Unity 2022.3 + URP 14</div>
+  <h1>一块像素是怎么被<span>算</span>出来的</h1>
+  <p class="lead">这份页面按渲染趟拆解参照库 <code>external/sloane-urp</code>：每一块着色代码产生什么视觉细节、由哪个参数控制、参数往大往小改会怎样。所有配图都是本轮用 <code>Assets/Editor/ShaderAtlasCapture.cs</code> 现抓的 002/005 场景图，以及从同一批缓冲直接导出的中间遮罩。</p>
+  <div class="legend">
+    <span><i style="background:#e0a45c"></i>代码位置 <code>文件:行</code></span>
+    <span><i style="background:#8fbf6a"></i>结论一句话</span>
+    <span><i style="background:#d98b6a"></i>实测与预期不符 / 坑</span>
+    <span><i style="background:#c9b98a"></i>未验证 = 无法从源码或本轮实测确定</span>
+  </div>
+</div>
+
+<!-- ===================== S1 ===================== -->
+<section class="card" id="s1">
+  <div class="kicker">Section 1</div>
+  <h2>阅读指南与管线总览</h2>
+
+  <h3>五件套怎么读</h3>
+  <p>每个机制都按同一顺序讲：<b>代码位置</b>（精确到行，能直接 grep）→ <b>它产生什么视觉细节</b> → <b>控制参数</b> → <b>改动方向</b> → <b>配图</b>。图注里写明抓图时的参数，便于复现。代码只贴关键 3~10 行，<mark>高亮</mark>的是这一节的主角。</p>
+  <p>页面里的“出厂值”以 <b>上游 GitHub 资产</b>为准，而不是本地被实验改过的 <code>.mat</code>。这一点很重要：002 的三个材质在上游根本没有序列化 <code>_NormalEdgeThreshold</code> / <code>_EdgeLevel</code> / <code>_DiffuseDitherStrength</code> / <code>_RimLightColor</code>，运行时走 shader 默认值（依次是 <code>1</code>、<code>-1</code>、<code>0</code>、alpha <code>0</code>）。本地资产今天被实验写进了 <code>0.82</code> 等值，所以抓图工具每次都先用 <code>mr.material</code> 把三个材质重置成上游有效值。</p>
+
+  <div class="conclusion"><b>一句话：</b>这不是一条“光照 → 后处理”的常规管线，而是<b>把物体的几何/材质属性先写进 G-buffer，再在画布分辨率上分四趟独立着色，最后用 16³ 色板 LUT 把连续颜色吸成离散色</b>。像素感来自“低画布 + 属性缓冲 + 分档 + 色板”，不是来自降采样滤镜。</div>
+
+  <h3>管线总览</h3>
+  <svg class="diagram" viewBox="0 0 1080 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sloane 像素管线流程图">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#8a7a66"/>
+      </marker>
+      <style>
+        .b{fill:#211a15;stroke:#4a3d31;rx:8}
+        .t{fill:#e9e1d5;font:12.5px "Microsoft YaHei",sans-serif}
+        .s{fill:#a99b87;font:10.5px Consolas,monospace}
+        .a{stroke:#8a7a66;stroke-width:1.4;fill:none;marker-end:url(#ar)}
+        .acc{fill:#e0a45c;font:12px "Microsoft YaHei",sans-serif}
+      </style>
+    </defs>
+    <rect class="b" x="14" y="30" width="150" height="66"/>
+    <text class="t" x="26" y="55">主相机 Camera</text>
+    <text class="s" x="26" y="73">只做一件事：</text>
+    <text class="s" x="26" y="87">copy ResultBuffer → 屏幕</text>
+
+    <rect class="b" x="14" y="128" width="150" height="86"/>
+    <text class="t" x="26" y="151">Cast Camera</text>
+    <text class="s" x="26" y="169">画布 120×80 / 240×160</text>
+    <text class="s" x="26" y="183">正交 size 2 / 4</text>
+    <text class="s" x="26" y="197">内部 G-buffer ×5</text>
+
+    <rect class="b" x="210" y="128" width="148" height="86"/>
+    <text class="t" x="221" y="150">① BeforeRender</text>
+    <text class="s" x="221" y="168">相机视图矩阵 x/y</text>
+    <text class="s" x="221" y="182">按单位格 0.05 取整</text>
+    <text class="s" x="221" y="196">物体原点同格吸附</text>
+
+    <rect class="b" x="402" y="92" width="168" height="158"/>
+    <text class="t" x="414" y="115">② 对象趟</text>
+    <text class="s" x="414" y="133">DefaultPass.hlsl</text>
+    <text class="s" x="414" y="151">Albedo / Normal0 / Normal1</text>
+    <text class="s" x="414" y="165">Physical / Shape / Palette</text>
+    <text class="s" x="414" y="179">RimLight / UV</text>
+    <text class="s" x="414" y="197">+ Depth（600×400）</text>
+    <text class="s" x="414" y="215">写 8 张 MRT</text>
+    <text class="s" x="414" y="233">像素化只在这里光栅化</text>
+
+    <rect class="b" x="612" y="40" width="152" height="74"/>
+    <text class="t" x="623" y="63">③ 连通域</text>
+    <text class="s" x="623" y="81">Check 8×8 线程</text>
+    <text class="s" x="623" y="95">Flood ×8（5×1.5）</text>
+
+    <rect class="b" x="612" y="132" width="152" height="62"/>
+    <text class="t" x="623" y="154">PriorityManagement</text>
+    <text class="s" x="623" y="172">读 ConnectivityDetail</text>
+    <text class="s" x="623" y="186">写 UV 偏移</text>
+
+    <rect class="b" x="612" y="212" width="152" height="118"/>
+    <text class="t" x="623" y="234">④ 着色四趟</text>
+    <text class="s" x="623" y="252">Diffuse（分档）</text>
+    <text class="s" x="623" y="266">Specular（两档）</text>
+    <text class="s" x="623" y="280">GI（SH + NoV 两档）</text>
+    <text class="s" x="623" y="294">RimLight（轮廓门控）</text>
+    <text class="s" x="623" y="312">全部在 120×80 画布跑</text>
+
+    <rect class="b" x="806" y="128" width="118" height="62"/>
+    <text class="t" x="817" y="150">⑤ Combine</text>
+    <text class="s" x="817" y="168">四趟相加</text>
+    <text class="s" x="817" y="182">clip(diffuse.a-1)</text>
+
+    <rect class="b" x="806" y="212" width="118" height="62"/>
+    <text class="t" x="817" y="234">⑥ ColorCorrection</text>
+    <text class="s" x="817" y="252">16³ 色板 LUT</text>
+    <text class="s" x="817" y="266">明度主导吸附</text>
+
+    <rect class="b" x="952" y="128" width="112" height="62"/>
+    <text class="t" x="962" y="150">⑦ Outline</text>
+    <text class="s" x="962" y="168">出厂 m_Active:0</text>
+    <text class="s" x="962" y="182">统一深灰 0.255</text>
+
+    <rect class="b" x="952" y="212" width="112" height="62"/>
+    <text class="t" x="962" y="234">⑧ Debug</text>
+    <text class="s" x="962" y="252">出厂关闭</text>
+    <text class="s" x="962" y="266">直出任意缓冲</text>
+
+    <path class="a" d="M164 72 C185 72 190 95 190 128"/>
+    <path class="a" d="M164 171 L210 171"/>
+    <path class="a" d="M358 171 L402 171"/>
+    <path class="a" d="M570 150 L612 90"/>
+    <path class="a" d="M570 171 L612 163"/>
+    <path class="a" d="M570 200 L612 250"/>
+    <path class="a" d="M764 77 C790 77 795 110 800 128"/>
+    <path class="a" d="M764 163 L806 159"/>
+    <path class="a" d="M764 250 C790 250 795 190 800 180"/>
+    <path class="a" d="M924 159 L952 159"/>
+    <path class="a" d="M924 243 L952 243"/>
+    <path class="a" d="M1008 128 C1008 90 890 70 890 55 C890 35 905 30 952 30" stroke-dasharray="4 4"/>
+    <text class="acc" x="800" y="24">最终 ResultBuffer</text>
+    <path class="a" d="M952 34 L900 34 C860 34 850 50 850 60" stroke-dasharray="4 4"/>
+    <text class="s" x="14" y="245">色板资产：002 出厂 Test_2（76 色）、005 岩石 Test_3（124 色）</text>
+    <text class="s" x="14" y="262">着色缓冲 120×80；G-buffer 600×400；ResultBuffer 120×80 HDR（线性）</text>
+  </svg>
+
+  <p class="small">资产里的特性顺序（<code>m_RendererFeatures</code> 序列）是：BeforeRender → RenderOpaqueObject → ConnectivityMapGeneration → PriorityManagement → Shading → Combine → Outline → Debug → ColorCorrection。注意这里和口头流传的“Priority 在 Connectivity 前”不同：<code>PriorityManagement.compute</code> 把 <code>_ConnectivityDetailBuffer</code> 当<b>输入</b>读，所以必须先有连通域；按资产序列也确实是 Connectivity 先入队。页面以源码与资产为准。</p>
+
+  <h3>为什么有两个相机</h3>
+  <p>主相机 <code>cullingMask=0</code>、<code>farClipPlane=0.02</code>，只负责把投影相机的 <code>ResultBuffer</code> 拷到屏幕（<code>SloanePixelartCopyTargetRendererFeature</code>）。真正渲染的是同一个 GameObject 下的子相机 “Cast Camera”：它把整个场景画进 120×80（002）或 240×160（005）的 HDR 目标，而 G-buffer 用 <code>m_DownSamplingScale=5</code> 的倍率，在 600×400 / 1200×800 上光栅化。屏幕上的“像素块”因此是画布像素被整数倍放大，而不是后处理马赛克。</p>
+
+  <h3>实验记录方式</h3>
+  <p>所有图由 <code>ShaderAtlasCapture.M01..M12</code> 各跑一次独立批模式 Unity 进程产生，落 <code>docs/images/cellshade-shader/</code>。材质改动一律 <code>mr.material</code>（运行时实例），渲染器特性开关抓完还原；每轮跑完用 <code>find Assets ProjectSettings Packages -newer &lt;时间戳&gt;</code> 校验库资产零改动。中间缓冲用 <code>Graphics.Blit</code> 转到 ARGBFloat 再 <code>ReadPixels</code>（SNorm/UNorm 缓冲不能直接读），深度另用一支 <code>Assets/Editor/ShaderAtlasDepth.shader</code> 处理 reversed-Z。</p>
+</section>
+
+<!-- ===================== S2 ===================== -->
+<section class="card" id="s2">
+  <div class="kicker">Section 2</div>
+  <h2>相机构建与单位格取整</h2>
+
+  <dl class="five">
+    <dt>代码位置</dt>
+    <dd><code>SloanePixelartCamera.cs:22-24</code>（目标分辨率 / 降采样）、<code>:40-47</code>（画布与 UnitSize）、<code>:113-119</code>（主相机只留拷贝）、<code>:155-277</code>（缓冲尺寸）、<code>SloanePixelartBeforeRenderRendererFeature.cs:38-57</code>（视图矩阵取整）、<code>CommonPass.hlsl:3,24</code>（物体原点取整）。</dd>
+    <dt>视觉细节</dt>
+    <dd>屏幕上一块“像素”其实是画布像素被整数倍放大。002 的画布是 120×80、内部 G-buffer 600×400（×5）；005 是 240×160 / 1200×800（×5）。相机平移不足半格时，物体轮廓与色带位置不挪动；跨过取整边界时整体挪一格。</dd>
+    <dt>控制参数</dt>
+    <dd><code>m_TargetResolution</code>（画布）、<code>m_DownSamplingScale</code>（G-buffer 倍率）、投影相机 <code>orthographicSize</code>（与画布高度共同决定单位格 <code>UnitSize = orthoSize×2/高度</code>）。002/005 都是 0.05 世界单位/格。</dd>
+    <dt>改动方向</dt>
+    <dd>画布调大 → 细节更多、像素块更小；调小 → 更“糊”、轮廓锯齿更明显。降采样调大 → G-buffer 更细、连通域深度预测更准，但最终画布像素不变。正交尺寸调大 → 单位格变大、吸附更粗。</dd>
+    <dt>配图</dt>
+    <dd>下图 1 是 120×80 原生画布，图 2 是同一帧按 ×5 最近邻放大的最终图；图 4 是相机沿右移 0.2 格后的差异热图。</dd>
+  </dl>
+
+  <pre><span class="file">SloanePixelartBeforeRenderRendererFeature.cs:38-40</span>Matrix4x4 viewMatrix = renderingData.cameraData.GetViewMatrix();
+<span class="hl">viewMatrix.m03 = Mathf.Round(viewMatrix.m03 / unitSize) * unitSize;</span>
+<span class="hl">viewMatrix.m13 = Mathf.Round(viewMatrix.m13 / unitSize) * unitSize;</span>
+<span class="cm">// 只取整 x/y 平移，旋转与 z 不动；随后把这张 V 设成全局矩阵</span></pre>
+
+  <pre><span class="file">SloanePixelartCamera.cs:47</span>public float UnitSize =&gt; m_CastCamera.Camera.orthographicSize * 2.0f / TargetHeight;
+<span class="cm">// 002: 2×2/80 = 0.05；005: 4×2/160 = 0.05</span></pre>
+
+  <p>关键不只相机：<code>SloanePixelartObject.GetSnappedMatrix</code> 还会把每个物体原点变换到<b>同一张已取整的视图矩阵</b>下，再把它的 view-space x/y 吸到同一张 0.05 网格，最后反算回世界空间作为 <code>_SnapOffset</code>（<code>SloanePixelartObject.cs:80-101</code>）。相机和物体用同一把尺子，所以相机整体平移时，物体在屏幕上的相对位置不变。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m02_canvas_native.png" alt="120x80 原生画布">
+      <figcaption><b>120×80 原生画布。</b>这是 ResultBuffer 的真实像素数；每个像素是一种颜色，没有抗锯齿。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m02_offset_000.png" alt="600x400 放大">
+      <figcaption><b>×5 最近邻放大到 600×400。</b>每个画布像素变成 5×5 的硬块；这是最终屏幕观感，不是滤镜模糊。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m02_offset_020.png" alt="相机右移0.2格">
+      <figcaption><b>相机沿自身右方向移 0.2 格（=0.01 世界单位）。</b>物体原点被强制重算吸附偏移；肉眼与图 2 无法区分。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m02_diff_020.png" alt="差异热图">
+      <figcaption><b>图 2 与图 3 的逐像素差异（红）。</b>差异只落在色带边界与轮廓的 1 像素线上，共 3.4% 像素；没有整块形状位移。这是浮点误差被分档/LUT 放大后的边界翻转，不是“形状在抖”。</figcaption></figure>
+  </div>
+
+  <div class="conclusion"><b>结论一句话：</b>相机与物体原点都吸到同一张 <code>0.05</code> 单位网格，所以相机平移在半个格子内被完全补偿；实测 0.2/0.4/0.6 格移动后只有 3.4%~5% 的边界像素翻档，轮廓本身不位移。没有这层取整，正交相机平移会让每个像素的覆盖关系变化，低分辨率下就是整块形状“爬行”。</div>
+  <p class="warn"><b>实测坑：</b>物体吸附偏移是按 <code>transform.hasChanged</code> 缓存的（<code>SloanePixelartObject.cs:55-60,72-77</code>）。只移动相机、不碰物体时，第一次比较必须手动把物体的 <code>transform.hasChanged</code> 置真强制重算，否则测到的是“旧吸附偏移 + 新相机”，会误判成管线抖动。</p>
+</section>
+
+<section class="card" id="s3">
+  <div class="kicker">Section 3</div>
+  <h2>对象趟：G-buffer 八缓冲</h2>
+
+  <dl class="five">
+    <dt>代码位置</dt>
+    <dd><code>Shaders/Includes/Passes/DefaultPass.hlsl:42-86</code>；MRT 槽位定义在 <code>Shaders/Includes/Inputs/Buffers.hlsl:1-8</code>；缓冲枚举在 <code>Scripts/GlobalInfo/OutputBuffer.cs:8-26</code>。</dd>
+    <dt>视觉细节</dt>
+    <dd>对象趟不计算任何光照。它把“这个像素是什么材质、法线朝哪、优先级多少、边缘要多暗、抖动多强、色板几档”写成 8 张屏幕缓冲。后面的着色趟在 120×80 画布上按这些属性重新算颜色。所以你在最终图上看到的硬边、色带、暗边、描边，都是这里先埋好的“属性”，不是光照的自然结果。</dd>
+    <dt>控制参数</dt>
+    <dd>材质面板上的 <code>_BaseColor/_BaseMap</code>、<code>_Smoothness</code>、<code>_Metallic</code>、<code>_NormalEdgeThreshold</code>、<code>_MainLightLevel</code>、<code>_EdgeLevel</code>、<code>_DiffuseDitherStrength</code>、<code>_ApplyOutline</code>、<code>_Priority</code>、<code>_AAScale</code>、<code>_RimLightColor</code>。</dd>
+    <dt>改动方向</dt>
+    <dd>改 albedo/smoothness/metallic 是“改材质”；改 level/edge/dither 是“改像素风格”；改 priority/AA 是“改遮挡与抗锯齿的取舍”。这一层改错，后面四趟再怎么调都救不回来。</dd>
+    <dt>配图</dt>
+    <dd>下面按缓冲逐张给可视化；每张都标了映射规则。所有图来自 002，出厂材质，120×80 画布、600×400 G-buffer。</dd>
+  </dl>
+
+  <table>
+    <tr><th>缓冲</th><th>格式 / 尺寸</th><th>写入内容（DefaultPass 行号）</th><th>谁读</th><th>屏幕后果</th></tr>
+    <tr><td><code>Depth</code></td><td>depth24 / 600×400</td><td>深度附件（非 MRT）</td><td>Connectivity</td><td>决定哪里是“断开边”</td></tr>
+    <tr><td><code>Albedo</code></td><td>RGBA16 SNorm / 600×400</td><td><code>:44-46</code> <code>_BaseMap × _BaseColor</code>，alpha 做 alpha clip</td><td>Diffuse / Specular / GI</td><td>所有颜色的底</td></tr>
+    <tr><td><code>Normal0</code></td><td>RGBA16 SNorm / 600×400</td><td><code>:48</code> <code>normalize(cross(ddy(posWS), ddx(posWS)))</code></td><td>Connectivity</td><td>断边/棱线；不参与着色</td></tr>
+    <tr><td><code>Normal1</code></td><td>RGBA16 SNorm / 600×400</td><td><code>:51-58</code> 顶点法线 + 法线贴图</td><td>四趟着色</td><td>光照方向、色带形状</td></tr>
+    <tr><td><code>PhysicalProperty</code></td><td>RGBA16 SNorm / 600×400</td><td><code>:66-67</code> R=smoothness，G=metallic</td><td>Specular / GI / Rim</td><td>高光大小、金属/反射</td></tr>
+    <tr><td><code>ShapeProperty</code></td><td>RGBA16 SNorm / 600×400</td><td><code>:77-80</code> R=priority，B=normalEdgeThreshold，A=AAScale/255</td><td>Priority / 着色 / Outline</td><td>遮挡优先级、棱线阈值、AA</td></tr>
+    <tr><td><code>PaletteProperty</code></td><td>RGBA16 SNorm / 600×400</td><td><code>:69-75</code> R=level/255，G=dither，B=edge 打包，A=outline 位</td><td>Diffuse / Outline</td><td>色带档数、抖动、暗边、描边</td></tr>
+    <tr><td><code>RimLightProperty</code></td><td>RGBA16 SNorm / 600×400</td><td><code>:85</code> <code>_RimLightColor</code>（alpha=强度）</td><td>RimLight</td><td>边缘光颜色与开关</td></tr>
+    <tr><td><code>UV</code></td><td>RGBA8 SNorm / 120×80</td><td>PriorityManagement 写 RG 偏移</td><td>着色趟 <code>GET_UV_WITH_PRIORITY</code></td><td>高优先级物体把邻居像素“推”开</td></tr>
+    <tr><td><code>ConnectivityDetail</code></td><td>RGBA8 SNorm / 600×400</td><td>ConnectivityCheck 写每方向的 connected/closer/center 位</td><td>Flood / Result / Priority</td><td>连通域中间图</td></tr>
+    <tr><td><code>ConnectivityResult</code></td><td>RGBA8 UNorm / 120×80</td><td>Result 写 R/G 覆盖率、B=normalDiff、A=8 位方向标志</td><td>Diffuse / GI / Outline</td><td>棱线、AA、描边</td></tr>
+  </table>
+
+  <h3>Normal0 与 Normal1：一个给连通域，一个给光照</h3>
+  <p><code>Normal0</code> 用屏幕导数反推面法线：<code>cross(ddy(positionWS), ddx(positionWS))</code>。GPU 的 <code>ddx/ddy</code> 在 2×2 像素 quad 内是常量，所以每个 quad 只有一个法线，球面上就出现<b>四边形斑块</b>；方块每个面是平面，整面法线相同，看起来是均匀色块。它只用于连通域的深度预测，不参与光照。<code>Normal1</code> 是顶点插值法线（再乘法线贴图），球面光滑、方块整面均匀，四趟着色都用它。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m01_normal0.png" alt="Normal0">
+      <figcaption><b>Normal0（面法线）</b>：<code>n×0.5+0.5</code> 映射到 RGB。球面是 2×2 quad 拼出的四边形斑块；方块三个面各自均匀；地面朝上所以是绿色（(0,1,0)→(0.5,1,0.5)）。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_normal1.png" alt="Normal1">
+      <figcaption><b>Normal1（顶点法线）</b>：同一映射。球面是连续渐变，没有斑块；方块仍是整面均匀。着色用的是这张。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_normal_diff.png" alt="Normal0 与 Normal1 差异">
+      <figcaption><b>|Normal0 − Normal1|×2</b>：球面出现棋盘状差异（quad 边界），方块只在棱线处有差异。这张图解释了为什么连通域的 normalDiff 在球面上是“噪”的。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_albedo.png" alt="Albedo">
+      <figcaption><b>Albedo（线性值经 LinearToSRGB 显示）</b>：球绿、方块红、地面暗棕。没有光照，所以是纯材质色；球轮廓是全屏分辨率的硬边。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_depth.png" alt="Depth">
+      <figcaption><b>Depth（近暗远亮）</b>：球比方块更近所以更暗；地面从近到远渐亮。这是连通域判断“前后遮挡”的原料。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_conn_detail.png" alt="ConnectivityDetail">
+      <figcaption><b>ConnectivityDetail（RGB×4）</b>：R/G 是每方向“连通”标志（接近 1 所以发白），B 是 normalDiff，在轮廓处形成彩色环。它是 600×400 全分辨率，供 Flood 在 5×5 块内扩散。</figcaption></figure>
+  </div>
+
+  <h3>材质属性通道</h3>
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m01_physical_smoothness.png" alt="Smoothness 缓冲">
+      <figcaption><b>Physical.R = smoothness</b>：球 0.443（中灰）、方块 0、地面 0.5。这张图就是高光指数的输入。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_physical_metallic.png" alt="Metallic 缓冲">
+      <figcaption><b>Physical.G = metallic</b>：002 三材质都是 0，所以全黑。005 岩石是 0.2，会看到中灰。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_shape_threshold.png" alt="NormalEdgeThreshold 缓冲">
+      <figcaption><b>Shape.B = _NormalEdgeThreshold</b>：002 出厂三材质都是 1（默认值），所以整张全白；这就是“棱线压暗关闭”。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_palette_level.png" alt="MainLightLevel 缓冲">
+      <figcaption><b>Palette.R = _MainLightLevel/255（显示时×255/8）</b>：球 3 档、方块/地面 4 档，所以球比方块暗一档的灰。它决定 Diffuse 的分档数。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_palette_dither.png" alt="Dither 缓冲">
+      <figcaption><b>Palette.G = dither 打包值</b>：<code>strength=0</code> 时是中性 0.5 的平灰；把 strength 调大，这里会出现屏幕空间图案（见 D 组）。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_palette_edge.png" alt="EdgeLevel 缓冲">
+      <figcaption><b>Palette.B = _EdgeLevel 打包值</b>：0.5 附近=0；出厂 -1 存在 0.496，所以是略暗于中灰的整片。读取时 <code>(B×2−1)×128</code> 还原成 -1。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_palette_outline.png" alt="Outline 位">
+      <figcaption><b>Palette.A 的 bit7 = _ApplyOutline</b>：出厂 1，所以 alpha=128/255，乘 2 显示为白。它是“这个物体参不参加描边”的逐材质开关。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_rimprop_a.png" alt="RimLight 强度">
+      <figcaption><b>RimLightProperty.A = 强度</b>：002 出厂全 0（没有边缘光），所以全黑；005 岩石是 1。RGB 通道存颜色，A 不存颜色只存强度。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_uv.png" alt="UV 缓冲">
+      <figcaption><b>UV 缓冲（RG 偏移×20 放大）</b>：平时接近 0.5 中灰；高优先级物体会把邻居像素的采样 UV 推开，边缘出现色偏。002 的优先级都是 1，所以偏移很小。</figcaption></figure>
+  </div>
+
+  <div class="conclusion"><b>结论一句话：</b>对象趟是“属性烘焙”：把材质常数、面法线、顶点法线、优先级、档数、暗边、抖动、描边位一次性写进 8 张屏幕缓冲。Normal0 的四边形斑块不是 bug，是 <code>ddx/ddy</code> 的 2×2 quad 本性；它只服务连通域，所以不污染光照。</div>
+</section>
+
+<!-- ===================== S4 ===================== -->
+<section class="card" id="s4">
+  <div class="kicker">Section 4</div>
+  <h2>连通域：深度预测与断开边</h2>
+
+  <dl class="five">
+    <dt>代码位置</dt>
+    <dd><code>Shaders/Includes/Connectivity.hlsl:42-63</code>（深度比较）、<code>:65-103</code>（沿方向预测平面深度）、<code>:98-100</code>（三种断开条件）；<code>ComputerShaders/Connectivity/ConnectivityCheck.compute:30-45</code>（四方向 + 打包）；<code>ConnectivityResult.compute:27-85</code>（5×5 汇总成画布像素 + normalDiff + 8 位方向位）；迭代次数在 <code>SloanePixelartConnectivityMapGenerationRendererFeature.cs:65-66</code>。</dd>
+    <dt>视觉细节</dt>
+    <dd>它不看书色差，只看<b>深度是否连续、面法线是否翻转</b>。所以在同一材质的球面上，轮廓会形成月牙形的断开边；方块的棱线会形成一条干净的线；而球面 Normal0 的 2×2 斑块会让 normalDiff 出现棋盘噪点。断开边本身不直接上色，它被三个下游消费：棱线压暗、AA 阈值、Outline。</dd>
+    <dt>控制参数</dt>
+    <dd>特性上的 <code>m_Threshold=0.25</code>（深度预测容差）、<code>m_IterationScale=1.5</code>（Flood 次数 = 降采样×1.5 = 8）；消费侧的 <code>_NormalEdgeThreshold</code>、<code>_EdgeLevel</code>、<code>m_AAScaler=1.5</code>。</dd>
+    <dt>改动方向</dt>
+    <dd>阈值调大 → 只有更大的深度跳变才断开，轮廓更容易“粘”在一起；调小 → 更多细节被判成断开，棱线/AA 更碎。迭代次数调大 → 连通域在 5×5 块内扩散更充分，边缘更整齐；调小 → 块内出现空洞。</dd>
+    <dt>配图</dt>
+    <dd>下面 8 张是把 <code>ConnectivityResult.a</code> 的 8 个 bit 拆开后的黑白掩码：白=该位为 1。再下面是 RGB 汇总与 normalDiff。</dd>
+  </dl>
+
+  <pre><span class="file">Connectivity.hlsl:77-100（省略了另一法线分支）</span>float3 normalCenter = TransformWorldToViewDir(_Normal0Buffer[prev].xyz);
+float2 pixelSpacing = centerPos.xy - targetPos.xy;
+float dz_x = -normalCenter.x * pixelSpacing.x / normalCenter.z;
+float dz_y = -normalCenter.y * pixelSpacing.y / normalCenter.z;
+float predictDepth = centerDepth + dz_x + dz_y;
+float resultCenter = abs(predictDepth - targetDepth);
+<span class="cm">// 两侧都预测失败才断开；一侧是空背景（法线≈0）也断开</span>
+<span class="hl">else if(resultCenter > _Threshold &amp;&amp; resultTarget > _Threshold) connected = 0;</span></pre>
+
+  <p>机制可以一句话概括：<b>假设相邻像素在同一个平面上，用中心像素的 Normal0 把中心深度沿屏幕方向外推到邻居位置；如果预测深度和邻居实际深度差得太多，说明这里不是同一个面，断开。</b>这个“平面预测”比单纯比较深度差更抗斜面临界，所以斜着看的地面不会被误判成断边；但球面法线变化快，预测会失败，于是轮廓处自然出现一圈断开边。</p>
+
+  <p>Check 在 600×400 全分辨率上跑，每个像素记录“向右/上/左/下是否连通、是否更近、是否是 5×5 块中心”。Flood 在 5×5 块内迭代 8 次，把块中心的连通标签扩散到块内（细节略，见 <code>ConnectivityFlood.compute</code>）。Result 再把每个 5×5 块压成一个画布像素：R=块内连通比例、G=连通或更近比例、B=块内最大 normalDiff、A=四个画布方向（步长 5）的 connected/closer 共 8 位。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m01_mask_right.png" alt="向右连通">
+      <figcaption><b>bit7 · 向右连通</b>：白色=与右邻居连通。只有球/方块的<b>右轮廓</b>出现黑线，内部全白。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_mask_left.png" alt="向左连通">
+      <figcaption><b>bit6 · 向左连通</b>：黑线移到<b>左轮廓</b>。两张合起来就是“轮廓的两侧”。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_mask_up.png" alt="向上连通">
+      <figcaption><b>bit5 · 向上连通</b>：黑线在<b>上轮廓</b>；方块顶面与侧面之间也会断。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_mask_down.png" alt="向下连通">
+      <figcaption><b>bit4 · 向下连通</b>：黑线在<b>下轮廓</b>。四个方向合起来描述“这个画布像素的哪一侧是物体边界”。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_mask_closer_right.png" alt="比右邻居更近">
+      <figcaption><b>bit3 · 中心比右邻居更近</b>：白=更近。球面左半与方块正面呈大片黑/白分区，这是深度场的方向性，不是颜色。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_mask_closer_left.png" alt="比左邻居更近">
+      <figcaption><b>bit2 · 中心比左邻居更近</b>：与上一张互为镜像；两者一起可用于判断遮挡方向。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_mask_closer_up.png" alt="比上邻居更近">
+      <figcaption><b>bit1 · 中心比上邻居更近</b>：球面上半部的深度梯度方向。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_mask_closer_down.png" alt="比下邻居更近">
+      <figcaption><b>bit0 · 中心比下邻居更近</b>：球面下半部。注意 closer 位是“中心更近=1”，与 Outline 的用法相反（Outline 在 <code>closer&lt;1</code> 时画）。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_conn_rg.png" alt="连通域 RG">
+      <figcaption><b>Result.R/G</b>：R=连通比例、G=连通或更近比例。两者都接近 1，所以整张偏黄；真正的信息在 B 和 A。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_conn_normaldiff.png" alt="normalDiff">
+      <figcaption><b>Result.B = normalDiff ×4</b>：方块棱线是一条干净白线；球面是<b>棋盘噪点</b>——Normal0 的 2×2 斑块让相邻法线差在 quad 边界周期性变大。这是后面棱线阈值必须设 1（或 0.82 且只对岩石）的原因。</figcaption></figure>
+  </div>
+
+  <h3>normalDiff 的三个消费方</h3>
+  <table>
+    <tr><th>消费方</th><th>代码</th><th>怎么用</th><th>视觉后果</th></tr>
+    <tr><td>棱线压暗</td><td><code>ShadingPass.hlsl:54</code></td><td><code>normalDiff &gt; _NormalEdgeThreshold</code> 时 <code>ndotl += singleLevel × _EdgeLevel</code></td><td>轮廓/棱线比周围暗一档（或亮一档），随光变深</td></tr>
+    <tr><td>AA 降档</td><td><code>ShadingPass.hlsl:53</code> + <code>SloanePixelartShadingRendererFeature.cs:167</code></td><td><code>ndotl &gt; singleLevel &amp;&amp; connect &lt; AAScaler/2</code> 时降一档</td><td>断开处的高光/亮档被收一档，减少锯齿边的闪烁</td></tr>
+    <tr><td>Outline</td><td><code>OutlinePass.hlsl:35-77</code></td><td>四方向 <code>connected&lt;1 &amp;&amp; closer&lt;1</code> 时把邻居像素涂成描边色</td><td>屏幕空间 1 像素统一色描边</td></tr>
+  </table>
+
+  <div class="conclusion"><b>结论一句话：</b>连通域是“屏幕空间平面预测”，输出的是深度/法线连续性，不是颜色边缘。它把球面轮廓变成月牙、把方块棱线变成直线；normalDiff 在球面上天然带棋盘噪，所以 002 的棱线压暗默认是关的（阈值 1），005 岩石才开到 0.82。</div>
+</section>
+
+<section class="card" id="s5">
+  <div class="kicker">Section 5</div>
+  <h2>着色四趟：Diffuse / Specular / GI / RimLight</h2>
+  <p class="lead">四趟都是全屏 Blit，源是 120×80 的占位图，真正的输入是对象趟的全局缓冲。它们各自输出一张 120×80 的 HDR 图，最后由 Combine 相加。四趟互不遮挡，所以“高光把漫反射顶掉”“边缘光只出现在轮廓”都是各自在代码里算出来的，不是混合模式。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m01_shade_diffuse.png" alt="Diffuse 缓冲">
+      <figcaption><b>Diffuse 输出</b>：球的三条绿带 + 方块三面；这是画面主体。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_shade_specular_x4.png" alt="Specular 缓冲 x4">
+      <figcaption><b>Specular ×4</b>：只有球心一块白；方块没有高光。×4 只是为了看清，实际贡献很暗。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_shade_gi_x4.png" alt="GI 缓冲 x4">
+      <figcaption><b>GI ×4</b>：整幅都有环境光，球偏绿、方块偏粉；暗面不是黑。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_shade_rimlight.png" alt="RimLight 缓冲">
+      <figcaption><b>RimLight</b>：002 出厂没有边缘光对象、材质 alpha=0，所以整张全黑。这是“三件套缺一不出光”的直接证据。</figcaption></figure>
+  </div>
+
+  <h3 id="s5-1">5.1 Diffuse：均匀分档 + 抖动微移 + 棱线压暗</h3>
+  <dl class="five">
+    <dt>代码位置</dt>
+    <dd><code>Shaders/Includes/Passes/ShadingPass.hlsl:37-63</code>（DiffuseShading）、<code>:65-110</code>（Fragment）、<code>:83</code>（取 level）、<code>:90</code>（dither 偏移）、<code>:94</code>（edge 还原）、<code>:101-104</code>（附加光固定 3 档）。</dd>
+    <dt>视觉细节</dt>
+    <dd>球面出现 N 条等宽色带，边界是硬切的；色带边界可以被 dither 打碎成棋盘；轮廓/棱线可以被单独压暗一档。方块因为每个面只有一个 ndotl，整面落在同一档，所以看起来是“整面平涂”，只有换档时才变色。</dd>
+    <dt>控制参数</dt>
+    <dd><code>_MainLightLevel</code>（档数）、<code>_DiffuseDitherStrength</code>（抖动幅度）、<code>_NormalEdgeThreshold</code>（哪些边算棱线）、<code>_EdgeLevel</code>（压暗/提亮几档）、主光方向/颜色/强度。</dd>
+    <dt>改动方向</dt>
+    <dd>level↑ → 色带更密、过渡更细；level↓ → 更平涂。dither↑ → 边界更碎、更像网点；0 → 纯硬边。edge 负得越多 → 轮廓越暗；正 → 轮廓反而更亮。</dd>
+    <dt>配图</dt>
+    <dd>A 组（level 1/2/3/4/6/8，LUT 后 + PreLUT）与 D 组（dither 0/0.02/0.08/0.2 的 4× 放大）。</dd>
+  </dl>
+
+  <pre><span class="file">ShadingPass.hlsl:44-58</span>if(level &gt; 0.0)
+{
+    float singleLevel = 1.0 / (level - 1.0);
+    ndotl = pow(ndotl, 1.0 / 2.2);
+    ndotl += singleLevel * offset;                       <span class="cm">// dither：±1 档微移边界</span>
+    ndotl = multiStep(ndotl, level, 0.0, 0.0);            <span class="cm">// 均匀分 N 档</span>
+    if((ndotl &gt; singleLevel &amp;&amp; connect &lt; _ConnectivityAntialiasingThreshold)) ndotl -= applyAA * singleLevel;
+    <span class="hl">if((normalDiff &gt; normalEdgeThreshold)) ndotl += singleLevel * normalEdgeLevel;</span>
+    ndotl = clamp(ndotl, 0.0, 1.0 + singleLevel);
+    ndotl = lerp(transmission, 1.0, ndotl);
+}</pre>
+
+  <p><code>multiStep(value, N, 0, 0)</code> 的输出是 <code>0, 1/(N−1), …, 1</code> 共 N 档（<code>Math/Step.hlsl:1-13</code>）。所以 level=4 是 0 / 0.333 / 0.667 / 1 四条带；level=8 是 8 条。注意 <code>level=1</code> 是退化配置：<code>singleLevel = 1/(1−1) = ∞</code>，任何 <code>∞×0</code> 的项都会变 NaN，棱线项一乘就把整块压成最低档。实测 level=1 的图几乎全黑，即使把 <code>_EdgeLevel</code> 设 0 也救不回来（因为 <code>normalDiff&gt;threshold</code> 时仍有 <code>∞×0</code>）。<b>要用“单档平涂”，最低用 level=2，或把 <code>_NormalEdgeThreshold</code> 设到大于最大 normalDiff。</b></p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m03_level_2_prelut.png" alt="level 2 prelut">
+      <figcaption><b>level=2（PreLUT）</b>：球面 2 档，方块 2 档。PreLUT 图能看清真正的分档，不受色板压缩影响。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m03_level_3_prelut.png" alt="level 3 prelut">
+      <figcaption><b>level=3（PreLUT）</b>：球面 3 档；这是 002 绿球的上游出厂档数。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m03_level_4_prelut.png" alt="level 4 prelut">
+      <figcaption><b>level=4（PreLUT）</b>：4 档；方块/地面的出厂档数。球面的档数由材质自己决定，不是全局。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m03_level_8_prelut.png" alt="level 8 prelut">
+      <figcaption><b>level=8（PreLUT）</b>：8 档，已经接近连续渐变，但边界仍是硬切。再往上加档不会变平滑，只会变成更多更细的硬带。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m03_level_4.png" alt="level 4 LUT">
+      <figcaption><b>level=4（过 Test_2 LUT 后）</b>：76 色色板把 4 档压缩成 3 种可见颜色；肉眼看到的“档数”是“分档 + 色板吸附”的联合结果。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m03_level_1.png" alt="level 1">
+      <figcaption><b>level=1 的实测</b>：整块几乎全黑。不是“1 档平涂”，而是 <code>singleLevel=∞</code> 的 NaN/∞ 退化。</figcaption></figure>
+  </div>
+
+  <h4>Dither 只在色带边界可见</h4>
+  <p>dither 值在对象趟按<b>屏幕空间</b>采样 <code>_DiffuseDitherPalette</code>，再打包进 <code>PaletteProperty.g</code>（<code>DefaultPass.hlsl:70-72</code>）。着色时 <code>ditherOffset = g×2−1</code>，乘以 <code>singleLevel</code> 后加到 ndotl 上，所以它只把“刚好在档边界附近”的像素推过边界；在色带内部，±0.2 档不足以改变档位，完全看不见。实测把强度从 0 拉到 0.2，球面下缘的明暗交界处才出现一条棋盘带。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m04_dither_00.png" alt="dither 0">
+      <figcaption><b>strength=0</b>：边界是干净的硬线。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m04_dither_20.png" alt="dither 0.2">
+      <figcaption><b>strength=0.2</b>：球面下缘出现棋盘状抖动带；内部色带仍然干净。</figcaption></figure>
+    <figure class="wide"><img src="../../images/cellshade-shader/m04_dither_zoom.png" alt="dither 4x 放大">
+      <figcaption><b>4× 放大对照（0 / 0.02 / 0.08 / 0.2）</b>：0.02 几乎无感，0.08 出现零星跳格，0.2 形成完整的一行/两行棋盘。dither 纹理是 <code>dither_0</code>、ST=(4,4)，即每个 G-buffer 像素一个图案值；降到画布后每个画布像素取一个值。</figcaption></figure>
+  </div>
+
+  <h3 id="s5-2">5.2 Specular：指数控制大小，两档量化出硬边</h3>
+  <dl class="five">
+    <dt>代码位置</dt>
+    <dd><code>ShadingPass.hlsl:117-126</code>（SpecularShading）、<code>:141-144</code>（取 smoothness / 指数 / 高光色）、<code>:158</code>（主光固定 level=2）。</dd>
+    <dt>视觉细节</dt>
+    <dd>球面出现一块<b>离散色块</b>高光，边缘是硬切的；光滑度越高，块越小、越亮、越靠中心；光滑度越低，块越大、越暗、越“糊”（但仍是硬边）。方块只在某个面正好对上半角向量时整面亮起，所以通常看不到高光。</dd>
+    <dt>控制参数</dt>
+    <dd><code>_Smoothness</code>（指数 <code>exp2(5s+1)</code>）、<code>_Metallic</code>（高光色从白渐变到 albedo）、光源方向/颜色。</dd>
+    <dt>改动方向</dt>
+    <dd>smoothness↑ → 指数↑ → 高光更小更集中；smoothness↓ → 高光铺满大半个球。metallic↑ → 高光染上 albedo 颜色，同时漫反射被 <code>(1−metallic)</code> 压掉。</dd>
+    <dt>配图</dt>
+    <dd>B 组（球 smoothness 0.2/0.443/0.6/0.75/0.95）与 E 组（方块 metallic 0/0.5/1）。</dd>
+  </dl>
+
+  <pre><span class="file">ShadingPass.hlsl:141-144,121-125</span>float smoothness = physicalProp.r;
+<span class="hl">float expSmoothness = exp2(5.0 * smoothness + 1.0);</span>
+float3 specular = lerp(float3(1,1,1), albedo, metallic);
+half NdotH = half(saturate(dot(normal, halfVec)));
+float modifier = pow(NdotH, expSmoothness) * light.distanceAttenuation * light.shadowAttenuation;
+<span class="hl">modifier = multiStep(modifier, 2.0, 0.0, 0.0);</span>   <span class="cm">// 只有 0 / 1 两档</span>
+return light.color * specular * modifier * smoothness;</pre>
+
+  <p><code>multiStep(..., 2, 0, 0)</code> 的输出只有 0 或 1，所以高光没有羽化，只有“在内/在外”。指数 <code>exp2(5s+1)</code> 的范围：s=0.2 → 4，s=0.443 → 9.3，s=0.6 → 16，s=0.75 → 26.9，s=0.95 → 53.8。指数越大，<code>NdotH^exp</code> 衰减越快，高光斑越小。乘上 <code>smoothness</code> 又让低光滑度的高光整体变暗，所以 0.2 时是一大块暗绿高光，0.95 时是一个小白点。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m06_smoothness_200.png" alt="smoothness 0.2">
+      <figcaption><b>smoothness=0.2</b>：高光斑最大、最暗（乘 0.2），几乎盖住半个球；仍是硬边。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m06_smoothness_443.png" alt="smoothness 0.443">
+      <figcaption><b>smoothness=0.443（球出厂值）</b>：中等大小，偏黄绿；这是 002 参考图里的高光规模。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m06_smoothness_600.png" alt="smoothness 0.6">
+      <figcaption><b>smoothness=0.6</b>：更小、更白；色板把高光吸成灰白。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m06_smoothness_950.png" alt="smoothness 0.95">
+      <figcaption><b>smoothness=0.95</b>：只剩一个很小的高光点，像镜面反射。</figcaption></figure>
+    <figure class="wide"><img src="../../images/cellshade-shader/m06_specular_zoom.png" alt="高光 5x 放大">
+      <figcaption><b>高光 5× 放大（0.443 / 0.6 / 0.95）</b>：边界是一刀切的硬边，没有渐变；这是两档量化 + 像素网格的直接结果。</figcaption></figure>
+  </div>
+
+  <p><b>金属度</b>在这套管线里不是“更亮的金属”，而是“把漫反射换成反射/高光”：<code>outputColor *= (1.0 - metallic)</code>（<code>:107</code>），高光色变成 <code>lerp(white, albedo, metallic)</code>，GI 的 <code>brdfData</code> 也按金属走（<code>:199-218</code>）。所以 metallic=1 的方块会明显变暗，只剩下环境反射和高光，和常见的 PBR 金属观感一致。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m06_metallic_00.png" alt="metallic 0">
+      <figcaption><b>metallic=0</b>：正常红色漫反射。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m06_metallic_50.png" alt="metallic 0.5">
+      <figcaption><b>metallic=0.5</b>：漫反射减半，颜色变暗；高光开始带 albedo 色。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m06_metallic_100.png" alt="metallic 1">
+      <figcaption><b>metallic=1</b>：漫反射归零，方块只剩环境反射/高光，整体近黑；顶面因反射天空略亮。</figcaption></figure>
+  </div>
+
+  <div class="conclusion"><b>结论一句话：</b>高光的“大小”由 <code>exp2(5s+1)</code> 控制，“硬边”由 <code>multiStep(...,2)</code> 控制，“颜色”由 <code>lerp(white, albedo, metallic)</code> 控制。三者独立，所以可以同时做到“小、硬、白”。</div>
+
+  <h3 id="s5-3">5.3 GI：SH + 天空反射 + NoV 两档</h3>
+  <dl class="five">
+    <dt>代码位置</dt>
+    <dd><code>ShadingPass.hlsl:168-181</code>（GlobalIlluminationShading）、<code>:173</code>（NoV 两档）、<code>:177</code>（GlossyEnvironmentReflection）、<code>:183-230</code>（Fragment）、<code>:224-227</code>（SAMPLE_GI）。</dd>
+    <dt>视觉细节</dt>
+    <dd>暗面不是纯黑，而是带天空色的环境光；球的掠射边缘有一圈更亮的“边缘光”，但它是 GI 的 fresnel，不是 RimLight；金属方块在 metallic↑ 后漫反射消失，只剩天空反射，所以会整块变暗、顶面反天空略亮。环境光强度变化时，最终图不是线性变亮，而是被 LUT 吸到不同的色相（002 的方块在 ambient=2.0 时变成粉白）。</dd>
+    <dt>控制参数</dt>
+    <dd>场景 <code>RenderSettings.ambientMode/ambientIntensity</code> + 天空盒（SH 探针）、材质 <code>_Smoothness</code>（perceptual roughness）、<code>_Metallic</code>、<code>_ConnectivityAntialiasingThreshold</code>（决定 NoV 是否 +1 档）。</dd>
+    <dt>改动方向</dt>
+    <dd>环境光↑ → GI 缓冲变亮、暗面细节更多，但色板可能跳到另一个色相；环境光↓ → 暗面压成近黑。smoothness↑ → 反射更锐、掠射边更干净；metallic↑ → 漫反射↓、反射占比↑。</dd>
+    <dt>配图</dt>
+    <dd>F 组（ambient 1.0/1.4/2.0 的最终图 + GI 缓冲×2）。</dd>
+  </dl>
+
+  <pre><span class="file">ShadingPass.hlsl:172-179</span>half3 reflectVector = reflect(-viewDirectionWS, normalWS);
+<span class="hl">half NoV = multiStep(saturate(dot(normalWS, viewDirectionWS)), 2.0, 0.0, levelBias);</span>
+half fresnelTerm = lerp(Pow4(1.0 - NoV), 0.0, brdfData.reflectivity);
+half3 indirectDiffuse = bakedGI;
+half3 indirectSpecular = GlossyEnvironmentReflection(reflectVector, brdfData.perceptualRoughness, 1.0h);
+half3 color = EnvironmentBRDF(brdfData, indirectDiffuse, indirectSpecular, fresnelTerm);</pre>
+
+  <p><code>NoV</code> 只有两档（<code>multiStep(...,2)</code>），所以“掠射边”不是渐变，而是一圈硬边。当像素位于断开边且 AA 开启时，<code>levelBias=1</code>（<code>:227</code> 的三元表达式），把这一圈的 NoV 抬高一级，让边缘更亮、更干净。这个 <code>levelBias</code> 是 GI 与连通域唯一的耦合点。</p>
+
+  <p>环境光来自 <code>SAMPLE_GI(lightmapUV, SH, normalWS)</code>：002/005 没有烘焙 lightmap，实际吃的是天空盒生成的环境探针（SH）。批模式下天空盒探针不会自动生成（<code>unity_SHA*</code> 全零），必须在场景加载后连续调 <code>DynamicGI.UpdateEnvironment()</code> 数十帧，且亮度约为正常编辑器的 <code>1/1.4</code>；本页所有 002/005 图都按 <code>×1.4</code> 补偿后再抓。如果不补偿，暗面和投影会接近全黑，看起来像“GI 没生效”。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m07_ambient_10.png" alt="ambient 1.0">
+      <figcaption><b>ambient=1.0（编辑器等效）</b>：暗面仍能读出绿色，方块暗面是深红；影子可见但很暗。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m07_ambient_14.png" alt="ambient 1.4">
+      <figcaption><b>ambient=1.4</b>：暗面更亮，方块变成亮橙；影子边缘开始变色。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m07_ambient_20.png" alt="ambient 2.0">
+      <figcaption><b>ambient=2.0</b>：球的黄心消失（被吸到和球身同一档绿），方块变粉白。这不是“更亮”，是 LUT 把明度变化映射成了色相跳变。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m07_gi_10.png" alt="GI buffer 1.0">
+      <figcaption><b>GI 缓冲 ×2（ambient=1.0）</b>：球的绿色环境光、方块的粉紫反射；方块顶面与侧面已经是两个色阶。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m07_gi_14.png" alt="GI buffer 1.4">
+      <figcaption><b>GI 缓冲 ×2（ambient=1.4）</b>：整体抬亮；方块顶面接近白。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m07_gi_20.png" alt="GI buffer 2.0">
+      <figcaption><b>GI 缓冲 ×2（ambient=2.0）</b>：方块顶面饱和成纯白，球面也接近饱和；再往上加环境光，GI 会先于 Diffuse 饱和。</figcaption></figure>
+  </div>
+
+  <div class="conclusion"><b>结论一句话：</b>GI 不是“给暗面加一点灰”，而是“SH 漫反射 + 天空镜面反射 + 两档 fresnel”。它的强度由场景环境光/天空盒决定，但最终颜色仍要被 16³ LUT 吸一次；所以 ambient 从 1.0 到 2.0 的视觉变化是<b>换色</b>，不是单纯变亮。</div>
+
+  <h3 id="s5-4">5.4 RimLight：三件套 + 轮廓门控</h3>
+  <dl class="five">
+    <dt>代码位置</dt>
+    <dd><code>Shaders/Includes/RimLight.hlsl:10-25</code>（RimLightShading）、<code>ShadingPass.hlsl:246-284</code>（Fragment / 循环）、<code>SloanePixelartRimlight.cs:28-77</code>（组件与静态字典）、<code>SloanePixelartShadingRendererFeature.cs:77-83</code>（每帧刷新 32 盏缓冲）。</dd>
+    <dt>视觉细节</dt>
+    <dd>只在<b>朝光那侧的轮廓边</b>出现 1 像素左右的亮线；暗侧、内部、背面都没有。它不是“物体边缘泛光”，而是“轮廓断开边 + 屏幕空间光方向匹配”两个条件同时满足才出光。颜色由组件颜色 × 材质 <code>_RimLightColor.rgb</code>，强度由材质 alpha 控制。</dd>
+    <dt>控制参数</dt>
+    <dd>场景里 <code>SloanePixelartRimlight</code> 的数量/方向（=物体 forward）/颜色；材质 <code>_RimLightColor</code> 的 RGB 与 alpha；上限 32 盏。</dd>
+    <dt>改动方向</dt>
+    <dd>旋转组件 → 亮边沿轮廓移动；alpha=0 → 关闭；颜色越亮 → 轮廓线越亮；加第二盏反方向 → 两侧轮廓各有一条不同颜色的线。暗侧无论怎么转都不会亮，因为 <code>ndotl</code> 已经被 saturate 到 0。</dd>
+    <dt>配图</dt>
+    <dd>H 组（0 盏 / 暖 / 冷 / 两盏；同一盏旋转 4 个方向）。</dd>
+  </dl>
+
+  <pre><span class="file">RimLight.hlsl:12-22</span>float ndotl = dot(direction, normal);
+ndotl *= factor;
+<span class="hl">ndotl = saturate(ndotl);</span>
+float2 screenSpaceLightDir = normalize(TransformWorldToViewDir(direction).xy);
+float modifier = (1.0 - float(connectedToRight)) * clamp(screenSpaceLightDir.x, 0.0, 1.0)
+               + (1.0 - float(connectedToLeft))  * clamp(-screenSpaceLightDir.x, 0.0, 1.0)
+               + (1.0 - float(connectedToUp))    * clamp(screenSpaceLightDir.y, 0.0, 1.0)
+               + (1.0 - float(connectedToDown))  * clamp(-screenSpaceLightDir.y, 0.0, 1.0);
+modifier = multiStep(modifier * ndotl, level, 0.0, 0.0);</pre>
+
+  <p>三件套缺一不出光：① 场景里挂 <code>SloanePixelartRimlight</code> 组件（方向取 <code>transform.forward</code>，颜色取组件字段；实例入静态字典，每帧 <code>RefreshRimLights()</code> 拷进 <code>_RimLights</code>，<code>MAX_RIMLIGHTS=32</code>）；② 材质 <code>_RimLightColor</code> 的 alpha 是强度，RGB 是乘色（002 出厂没有这个属性，走 shader 默认 alpha=0，所以天然不出光）；③ 着色趟的 <code>for(i &lt; _RimLightsCount)</code> 循环。</p>
+
+  <p>为什么暗侧必然没有？<code>RimLightShading</code> 先算 <code>dot(rimDir, normal)</code> 并 <code>saturate</code>；法线背向光源时它是 0，后面乘什么都是 0。能否出光还取决于轮廓门控：循环传入的是 <code>connectedToRight | !closerThanRight</code>，而函数里用的是 <code>(1 − connected)</code>，合起来就是 <b>“该方向断开 且 中心比邻居更近”</b>——只有外轮廓的近侧边才满足，内部深度断边（中心更远）不会亮。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m08_none.png" alt="无边缘光">
+      <figcaption><b>0 盏</b>：球/方块轮廓干净，没有亮线。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m08_warm.png" alt="暖边缘光">
+      <figcaption><b>1 盏暖（右前上）</b>：球的上右轮廓出现暖白线。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m08_cool.png" alt="冷边缘光">
+      <figcaption><b>1 盏冷（左前上）</b>：亮线移到上左轮廓，带冷蓝。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m08_both.png" alt="两盏边缘光">
+      <figcaption><b>两盏</b>：上左与上右各一条，颜色不同；这就是 005 岩石“金 + 蓝”两条轮廓光的来源。</figcaption></figure>
+    <figure class="wide"><img src="../../images/cellshade-shader/m08_rim_zoom.png" alt="边缘光 4x 放大">
+      <figcaption><b>4× 放大（无 / 暖 / 冷 / 朝下）</b>：亮线只有 1 个画布像素宽，贴在最外圈；朝下时上缘完全消失，只在下方轮廓出现（本裁切未覆盖）。方向门控是逐方向的，不是整体亮度。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m08_dir_left.png" alt="方向 左">
+      <figcaption><b>同一盏转到左前上</b>：亮边沿轮廓滑到左上。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m08_dir_back.png" alt="方向 后">
+      <figcaption><b>转到后方</b>：亮边消失/缩到看不见的背侧；朝相机的一侧法线不满足 ndotl。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m08_dir_down.png" alt="方向 下">
+      <figcaption><b>转到下前</b>：亮边跑到下缘；上缘不再有光。这一组四张证明“亮边跟着方向走，暗侧始终没有”。</figcaption></figure>
+  </div>
+
+  <div class="conclusion"><b>结论一句话：</b>边缘光 = 组件（方向/颜色）× 材质 alpha（强度）× 轮廓门控（断开且更近）× <code>saturate(dot)</code>（暗侧归零）。它不是后处理描边，和 Outline 的统一色描边是两套完全不同的机制。</div>
+</section>
+
+<section class="card" id="s6">
+  <div class="kicker">Section 6</div>
+  <h2>合成与颜色校正</h2>
+
+  <dl class="five">
+    <dt>代码位置</dt>
+    <dd><code>ShadingPass.hlsl:232-244</code>（Combine）、<code>:238</code>（clip）；<code>Shaders/Blit/ColorCorrection.shader:33-40</code>（16³ 查表）；<code>SloanePixelartColorCorrectionRendererFeature.cs:39-43</code>（<code>_Resolution = palette.height</code>）。</dd>
+    <dt>视觉细节</dt>
+    <dd>四趟逐像素相加，没有混合权重；背景像素被 <code>clip</code> 丢弃，露出相机清屏色/地面。之后整帧被 16³ 色板 LUT 吸成离散色：002 的整帧从 PreLUT 的 85 种颜色压到 8 种；色板不同，整幅画的色相/明度关系就换一套。</dd>
+    <dt>控制参数</dt>
+    <dd>四趟各自的输出（由前面的材质参数决定）；ColorCorrection 特性上的 <code>m_Palette</code> 纹理（每期一套）；<code>_Resolution</code> 固定取 palette 高度 16。</dd>
+    <dt>改动方向</dt>
+    <dd>换色板 → 整套色相/明度映射换掉，比调任何单个材质参数都猛；关 ColorCorrection → 看到连续的 PreLUT 图，颜色更“脏”但过渡更细；<code>clip</code> 关掉 → 背景会被四趟着色污染（通常不是想要的效果）。</dd>
+    <dt>配图</dt>
+    <dd>四趟相加 vs PreLUT vs LUT 后；四张色板在同一场景的对照；LUT 的 16³ 切片与“只改明度”的吸附实验。</dd>
+  </dl>
+
+  <pre><span class="file">ShadingPass.hlsl:237-243</span>float4 diffuse = tex2D(_DiffuseBuffer, uv);
+<span class="hl">clip(diffuse.a - 1);</span>
+float4 specular = tex2D(_SpecularBuffer, uv);
+float4 globalIllumination = tex2D(_GlobalIlluminationBuffer, uv);
+float4 rimLight = tex2D(_RimLightBuffer, uv);
+return float4(diffuse.rgb + specular.rgb + globalIllumination.rgb + rimLight.rgb, 1.0);</pre>
+
+  <p>实测把四张缓冲在 CPU 上相加，再与关掉 ColorCorrection 的 ResultBuffer 对比：<b>99.66% 像素逐字节相同，最大差 1/255</b>。这说明 Combine 就是纯加法，没有隐藏的权重/色调映射；剩下的 0.34% 是 SNorm 量化与浮点舍入。背景之所以能被 <code>clip</code> 掉，是因为着色趟的 <code>GET_ALBEDO</code> 在 albedo alpha=0 处已经 discard，Diffuse 缓冲保留清屏的 alpha=0；Combine 只保留 alpha=1 的几何像素。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m01_sum_four.png" alt="四趟相加">
+      <figcaption><b>四趟手工相加</b>（Diffuse+Specular+GI+RimLight，线性转 sRGB 显示）：与下一张几乎逐像素一致。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_result_prelut.png" alt="PreLUT 结果">
+      <figcaption><b>关掉 ColorCorrection 的 ResultBuffer</b>：连续光照，85 种颜色；这是 LUT 的输入。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m01_result_lut.png" alt="LUT 后">
+      <figcaption><b>Test_2 LUT 后</b>：整帧只剩 8 种颜色；球的黄心、绿身、暗边，方块的红/橙/暗面，地面的暗棕，全部是色板里的离散色。</figcaption></figure>
+    <figure class="wide"><img src="../../images/cellshade-shader/m10_lut_brightness.png" alt="LUT 明度吸附">
+      <figcaption><b>只改明度的 LUT 吸附实验</b>（CPU 按 <code>ColorCorrection.shader:36-40</code> 复算，色板 Test_3）：上排是输入（固定色相/饱和度，明度从 0.1 到 1.0），下排是 LUT 输出。输入明度平滑变化，输出却会跳到不同色相/饱和度——这就是“明度主导吸附”。</figcaption></figure>
+  </div>
+
+  <h3>clip 的证据：把地面关掉、背景涂成品红</h3>
+  <p>002 的地面铺满全屏，所以平时看不到背景像素。把 Plane 的 Renderer 关掉、Cast Camera 的清屏色设成品红、ColorCorrection 关掉，再抓一张：物体区域仍然是四趟着色后的颜色，背景区域保持纯品红。配合 Diffuse 缓冲的 alpha 掩码（物体=1，背景=0），就能确认 <code>clip(diffuse.a - 1)</code> 丢的是背景，而不是“把背景涂黑”。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m11_clip_magenta.png" alt="clip 品红背景">
+      <figcaption><b>关地面 + 品红清屏 + 关 LUT</b>：背景是纯品红 (255,0,255)，说明背景像素没有参与四趟着色；物体边缘是硬切的。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m11_diffuse_alpha_noplane.png" alt="Diffuse alpha 掩码">
+      <figcaption><b>同一帧的 Diffuse.a</b>：球/方块=白（1），背景=黑（0）。Combine 的 <code>clip(a−1)</code> 只保留白色区域。</figcaption></figure>
+  </div>
+
+  <pre><span class="file">ColorCorrection.shader:35-40</span>float3 outputColor = tex2D(_MainTex, uv).rgb;
+<span class="hl">outputColor = LinearToSRGB(outputColor);</span>
+float2 targetCoord = float2(outputColor.r / res + floor(outputColor.b * res) / res, 1.0 - outputColor.g);
+outputColor = _Palette.Sample(sampler_Palette_point_clamp_sampler, targetCoord).rgb;</pre>
+
+  <p>查表是严格的 16×16×16 分箱：r 和 b 一起决定 x（16 个 b 切片，每片 16 列 r），g 决定 y（1−g）。所以输入先被量化到每轴 16 级，再去色板里取最近色。色板本身是“每期一套”的烘焙结果：002 参考帧对应 Test_1（64 色）、006 金属锭对应 Test_0（46 色）、v3 岩石对应 Test_3（124 色）。出厂渲染器接的是 Test_2（76 色）。烘焙算法细节（Lab 的 a/b 归一化 + CIEDE2000）不在本页展开；这里只记住结果：<b>明度稍微变一点，就可能吸到另一个色相的色板色</b>。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m10_palette_Test_0.png" alt="Test_0">
+      <figcaption><b>Test_0（46 色）</b>：整体偏灰橄榄，方块是粉红；色板越小，可用色相越少。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m10_palette_Test_1.png" alt="Test_1">
+      <figcaption><b>Test_1（64 色）</b>：饱和绿 + 黄心 + 品红方块；002 的参考视频用的是这套。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m10_palette_Test_2.png" alt="Test_2">
+      <figcaption><b>Test_2（76 色）</b>：出厂渲染器接的色板；橙方块、黄绿球。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m10_palette_Test_3.png" alt="Test_3">
+      <figcaption><b>Test_3（124 色）</b>：v3 岩石参考帧的色板；深绿球 + 奶油心 + 红方块，色相跨度最大。</figcaption></figure>
+    <figure class="wide"><img src="../../images/cellshade-shader/m10_lut_strips.png" alt="四张 LUT 展开">
+      <figcaption><b>四张 256×16 LUT 展开（×4）</b>：每一行是一个 g 档，每一列是一个 (r,b) 组合；色板越“丰富”，切片里的色块越连续。它不是渐变图，而是 16³ 个离散答案。</figcaption></figure>
+  </div>
+
+  <div class="conclusion"><b>结论一句话：</b>Combine 是纯加法 + 背景 clip；ColorCorrection 是 16³ 最近色吸附，不是亮度曲线。调单个材质参数只改变“输入落在哪个箱”，换色板则直接换掉“每个箱里是什么颜色”。</div>
+</section>
+
+<section class="card" id="s7">
+  <div class="kicker">Section 7</div>
+  <h2>Outline 特性：统一色描边 vs 棱线暗边</h2>
+
+  <dl class="five">
+    <dt>代码位置</dt>
+    <dd><code>Shaders/Blit/Outline.shader:12-26</code>（Pass）、<code>Shaders/Includes/Passes/OutlinePass.hlsl:16-24</code>（ApplyOutline）、<code>:26-84</code>（四方向邻居检测）；特性字段在 <code>Sloane Pixelart Cast Renderer.asset</code>（<code>m_Active: 0</code>、<code>m_SolidColor: 1</code>、<code>m_OutlineColor: 0.254717</code>）。</dd>
+    <dt>视觉细节</dt>
+    <dd>沿物体轮廓画一圈 1 个<b>画布像素</b>宽的深灰线（在 600×400 输出里是 5 像素宽）。它只看连通域的 connected/closer 位，不看光照，所以颜色恒定、不随光变深；关掉特性就完全消失。出厂是关闭的，002 默认图里没有这圈线。</dd>
+    <dt>控制参数</dt>
+    <dd>特性 <code>m_Active</code>（总开关）、<code>m_SolidColor</code>（统一色/乘底色）、<code>m_OutlineColor</code>（颜色）；材质 <code>_ApplyOutline</code>（这个物体参不参加，存在 <code>PaletteProperty.a</code> 的 bit7）。</dd>
+    <dt>改动方向</dt>
+    <dd><code>m_SolidColor=1</code> → 所有轮廓都是同一个颜色；<code>=0</code> → 轮廓 = 邻居底色 × 描边色，会随物体变色。把 <code>_ApplyOutline</code> 设 0 → 该物体不被描边。颜色改亮/改暗只影响线，不影响物体内部。</dd>
+    <dt>配图</dt>
+    <dd>I 组：同一帧 Outline 关 / 开；以及 5× 放大看线宽。</dd>
+  </dl>
+
+  <pre><span class="file">OutlinePass.hlsl:35-43（其余三个方向同构）</span>if(connectedToRight &lt; 1 &amp;&amp; closerThanRight &lt; 1)
+{
+    uv = uvCache + float2(_ScreenParams.z - 1.0, 0.0);   <span class="cm">// 采样右邻居</span>
+    GET_PALETTE_PROP
+    if(applyOutline &gt; 0)
+    {
+        <span class="hl">outputColor += ApplyOutline(uv);</span>   <span class="cm">// 统一色或 底色×描边色</span>
+        weight += 1.0;
+    }
+}</pre>
+
+  <p><code>_ScreenParams.z - 1</code> 就是 <code>1/画布宽</code>，所以“邻居”正好是一个画布像素。Outline 是在<b>当前像素</b>上写邻居的描边色：当前像素必须在该方向“断开且不更近”，然后看邻居的 <code>applyOutline</code> 位。结果就是线画在物体的外侧轮廓上，宽 1 个画布像素。它和 <code>_EdgeLevel</code> 的棱线暗边不是一回事：后者在 Diffuse 趟里改的是物体自己的 <code>ndotl</code>，颜色由光照/材质/色板共同决定，随光变深；Outline 是在最终颜色上盖一层恒定色，和光无关。</p>
+
+  <table>
+    <tr><th></th><th>棱线暗边（_EdgeLevel）</th><th>Outline 特性</th></tr>
+    <tr><td>在哪一趟</td><td>Diffuse 着色趟内部</td><td>Combine 之后的屏幕 Blit</td></tr>
+    <tr><td>判据</td><td><code>normalDiff &gt; _NormalEdgeThreshold</code></td><td><code>connected&lt;1 &amp;&amp; closer&lt;1</code> 的四方向</td></tr>
+    <tr><td>颜色</td><td>该像素自己的 ndotl 降一档 → 随材质/光照/色板变</td><td><code>m_OutlineColor</code> 恒定色（或底色×色）</td></tr>
+    <tr><td>位置</td><td>物体内部贴着轮廓的一圈</td><td>轮廓外侧 1 个画布像素</td></tr>
+    <tr><td>出厂</td><td>002 阈值 1（关）；005 岩石 0.82（开）</td><td><code>m_Active:0</code>（关）</td></tr>
+  </table>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/m09_outline_off.png" alt="Outline 关">
+      <figcaption><b>Outline 关（出厂）</b>：球的轮廓是绿色暗边/背景的直接交界，没有灰色线。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/m09_outline_on.png" alt="Outline 开">
+      <figcaption><b>Outline 开</b>：球和方块外围多了一圈深灰线；方块的内棱也有。颜色恒为 0.2547 灰，不随光变。</figcaption></figure>
+    <figure class="wide"><img src="../../images/cellshade-shader/m09_outline_zoom.png" alt="Outline 5x 放大">
+      <figcaption><b>5× 放大</b>：线宽正好 1 个画布像素（=5 个输出像素），边界是硬切的；线画在物体外侧，把背景像素替换掉。</figcaption></figure>
+  </div>
+
+  <div class="conclusion"><b>结论一句话：</b>棱线暗边是“物体自己的光照降档”，Outline 是“轮廓外侧盖一层恒定色”。前者随光变深、受色板影响；后者不随光变、只受开关/颜色影响。002 出厂两者都没开（阈值 1 + Outline 关闭），005 岩石只开棱线暗边。</div>
+
+  <h3 id="s7-1">7.1 两种样式，与 v3 视频用的是哪一种（2026-11-24 实测）</h3>
+  <p>同一个描边趟有两个着色分支，由关键字 <code>_OUTLINE_SOLID_COLOR</code>（特性字段 <code>m_SolidColor</code>）切换：</p>
+  <pre><span class="file">OutlinePass.hlsl:16-24 · ApplyOutline</span>#ifdef _OUTLINE_SOLID_COLOR
+    return <span class="hl">_OutlineColor.rgb</span>;                    <span class="cm">// 样式一：纯色，与物体/光照无关</span>
+#else
+    return <span class="hl">baseColor * _OutlineColor.rgb</span>;         <span class="cm">// 样式二：本体底色 × 描边色 → 随光变深</span>
+#endif</pre>
+  <p>样式二取的是<b>邻居像素的漫反射色</b>，所以描边天然跟着该处光照走——亮面边的描边亮、影子侧边的描边暗。</p>
+
+  <div class="figs">
+    <figure><img src="../../images/cellshade-shader/outline_two_styles_rocks.png" alt="岩石三态描边放大">
+      <figcaption><b>005 岩石左缘 8×（关 / 纯色 / 本体色）</b>：纯色样式在背景侧画出灰蓝一圈 (142,144,151)；本体色样式画出暗棕紫 (73,51,59)。</figcaption></figure>
+    <figure><img src="../../images/cellshade-shader/outline_two_styles_cube.png" alt="002 方块三态描边放大">
+      <figcaption><b>002 方块 9×（关 / 纯色 / 本体色）</b>：本体色样式在方块顶/右外缘画出暗红线；纯色样式是灰蓝线。</figcaption></figure>
+  </div>
+
+  <p>用像素序列直接判别 v3 视频柱子左缘（y=300 横扫）：</p>
+  <pre><span class="file">v3 视频帧 004.jpg · y=300 · x=340→380</span>背景 (95,94,100) → <span class="hl">暗棕 (94,75,60)</span> → <span class="hl">亮米白 (247,236,208)</span> → 正面 (128,110,106)
+我方 outline2（本体色）背景 (101,81,82) → <span class="hl">暗棕紫 (73,51,59)</span> → 亮米色 (188,159,153) → 正面 (129,112,107)
+我方 outline1（纯色）  背景 (101,81,82) → <span class="hl">灰蓝 (142,144,151)</span> → 亮米色 (188,159,153) → 正面 (129,112,107)</pre>
+  <div class="concl">结论：<b>视频用的是本体色样式描边</b>（纯色样式会产生视频里不存在的灰蓝圈）。视频的「双层边」= 外层描边（背景侧暗化圈）+ 内层边缘光（物体轮廓上的亮线，见 5.4）。残余差异只是参数值：描边色 <code>_OutlineColor</code> 与材质 <code>_RimLightColor</code> —— 视频的描边棕更暖亮、边缘光更接近白米色。</div>
+
+  <figure><img src="../../images/cellshade-shader/outline_vs_reference.png" alt="002 配置与参考图">
+    <figcaption><b>参考图 vs 002 三态</b>（P1、地面提亮、球 4 档/光滑 0.95/棱线阈 0.82、两盏边缘光）：结构与参考一致；参考的高光是偏黄小点，对应 <code>_Smoothness</code> 约 0.6~0.75，0.95 会发白。</figcaption></figure>
+
+</section>
+
+<section class="card" id="s8">
+  <div class="kicker">Section 8</div>
+  <h2>参数速查表</h2>
+  <p class="lead">“位置”列都能在源码里 grep 到；“出厂值”以上游 GitHub 资产为准（本地 002 材质被实验改过，见第 10 节）；“参考视频/图”只能确定色板与 005 岩石材质，其余标“未验证”。</p>
+
+  <table>
+    <tr><th>视觉细节</th><th>参数</th><th>位置（文件:行）</th><th>往大改 / 往小改</th><th>出厂值</th><th>参考视频/图</th></tr>
+    <tr><td>色带条数</td><td><code>_MainLightLevel</code></td><td><code>DefaultPass.hlsl:69</code>；<code>ShadingPass.hlsl:44-52</code></td><td>↑ 条带更密更细；↓ 更平涂；<b>1 是 ∞ 退化，会黑</b></td><td>002 方块 4 / 球 3 / 地面 4；005 Rock 4；006 Gold 4</td><td>未验证（参考图的条带数没有逐像素反推）</td></tr>
+    <tr><td>色带边界抖动</td><td><code>_DiffuseDitherStrength</code></td><td><code>DefaultPass.hlsl:70-72</code>；<code>ShadingPass.hlsl:90,50</code></td><td>↑ 边界碎成棋盘；0 = 硬边</td><td>002 三材质 0（上游未序列化）；005 Rock 0.008；007 0.18~0.207</td><td>未验证</td></tr>
+    <tr><td>棱线压暗阈值</td><td><code>_NormalEdgeThreshold</code></td><td><code>DefaultPass.hlsl:79</code>；<code>ShadingPass.hlsl:54</code></td><td>↑ 只有更强法线差才压暗；1 = 关；↓ 更多边被压暗</td><td>002 三材质 1（shader 默认）；005 Rock 0.82；RockGround 0.1；006 Gold 0.9</td><td>005 岩石 0.82（与资产一致）</td></tr>
+    <tr><td>棱线压暗幅度</td><td><code>_EdgeLevel</code></td><td><code>DefaultPass.hlsl:73</code>；<code>ShadingPass.hlsl:94,54</code></td><td>负 = 压暗 N 档；正 = 提亮 N 档；0 = 不压</td><td>002 -1（默认）；005 Rock -1；006 Gold +1</td><td>005 岩石 -1</td></tr>
+    <tr><td>高光大小/亮度</td><td><code>_Smoothness</code></td><td><code>DefaultPass.hlsl:66</code>；<code>ShadingPass.hlsl:142,122</code></td><td>↑ 高光更小更亮（指数 <code>exp2(5s+1)</code>）；↓ 更大更暗</td><td>002 球 0.443 / 方块 0 / 地面 0.5；005 Rock 0.05；006 Gold 1</td><td>未验证</td></tr>
+    <tr><td>金属感</td><td><code>_Metallic</code></td><td><code>DefaultPass.hlsl:67</code>；<code>ShadingPass.hlsl:107,144,202</code></td><td>↑ 漫反射↓、高光/反射取 albedo；1 = 只剩反射</td><td>002 三材质 0；005 Rock 0.2；006 Gold 0.8</td><td>005 岩石 0.2</td></tr>
+    <tr><td>环境光亮度/色相</td><td><code>RenderSettings.ambientIntensity</code></td><td>场景 RenderSettings；<code>ShadingPass.hlsl:226</code></td><td>↑ GI 变亮，但 LUT 会跳到另一色相；↓ 暗面近黑</td><td>002/005 序列化 1.0；批模式抓图 ×1.4</td><td>005 对齐用 1.4（编辑器等效）</td></tr>
+    <tr><td>主光强度/颜色</td><td>Directional Light</td><td>场景；<code>ShadingPass.hlsl:39-40,61</code></td><td>↑ 整体提亮、色带向高档移动；颜色改变所有受光面色相</td><td>002 强度 1.2 暖白；005 强度 1 暖白</td><td>未验证</td></tr>
+    <tr><td>边缘光方向/亮边位置</td><td><code>SloanePixelartRimlight</code> 的 forward</td><td><code>RimLight.hlsl:12,16-20</code>；<code>SloanePixelartRimlight.cs:39,53</code></td><td>旋转 → 亮边沿轮廓移动；背光侧永远没有</td><td>002 0 个组件；005 2 个（前/后）</td><td>005 金/蓝两盏</td></tr>
+    <tr><td>边缘光颜色/强度</td><td>组件 <code>m_Color</code> + 材质 <code>_RimLightColor</code></td><td><code>RimLight.hlsl:24</code>；<code>ShadingPass.hlsl:280</code></td><td>alpha=0 关闭；alpha↑ 更亮；颜色乘组件色</td><td>002 上游无该属性（默认 alpha 0）；005 Rock alpha 1</td><td>005 金/蓝</td></tr>
+    <tr><td>统一描边</td><td>Outline 特性 <code>m_Active</code> / <code>m_OutlineColor</code></td><td><code>OutlinePass.hlsl:16-24,35-77</code>；renderer asset</td><td>开 = 1 画布像素恒定色；关 = 无；颜色只改线</td><td>002 出厂关，色 0.2547 灰，SolidColor=1</td><td>视频里未见（未验证）</td></tr>
+    <tr><td>整幅画的色相/明度映射</td><td>ColorCorrection <code>m_Palette</code></td><td><code>ColorCorrection.shader:39-40</code>；<code>SloanePixelartColorCorrectionRendererFeature.cs:39-43</code></td><td>换色板 = 换整套离散答案；调单个材质只换落箱</td><td>002 出厂 Test_2（76 色）；005 场景用 Test_2</td><td>002 参考 Test_1；005 岩石 Test_3；006 Test_0</td></tr>
+    <tr><td>画布分辨率/像素块</td><td><code>m_TargetResolution</code> / <code>m_DownSamplingScale</code></td><td><code>SloanePixelartCamera.cs:22-24,40-47</code></td><td>画布↑ 更细；降采样↑ G-buffer 更细，但最终像素块不变</td><td>002 120×80×5；005 240×160×5</td><td>未验证（视频分辨率 960×640 不等于画布）</td></tr>
+    <tr><td>吸附单位格</td><td>投影相机 <code>orthographicSize</code> / 画布高</td><td><code>SloanePixelartCamera.cs:47</code>；<code>SloanePixelartBeforeRenderRendererFeature.cs:39-40</code></td><td>↑ 格子更大、吸附更粗；↓ 更细但更容易抖</td><td>002/005 都是 0.05 世界单位</td><td>未验证</td></tr>
+    <tr><td>连通域断开灵敏度</td><td>Connectivity 特性 <code>m_Threshold</code></td><td>renderer asset；<code>Connectivity.hlsl:100</code></td><td>↑ 更少断开（轮廓更“粘”）；↓ 更多断开</td><td>0.25</td><td>未验证</td></tr>
+    <tr><td>连通域扩散范围</td><td><code>m_IterationScale</code></td><td><code>SloanePixelartConnectivityMapGenerationRendererFeature.cs:65-66</code></td><td>↑ Flood 次数更多（5×scale×1.5）；↓ 块内空洞</td><td>1.5 → 8 次</td><td>未验证</td></tr>
+    <tr><td>AA 降档阈值</td><td>Shading 特性 <code>m_AAScaler</code></td><td><code>SloanePixelartShadingRendererFeature.cs:19,167</code>；<code>ShadingPass.hlsl:53</code></td><td>↑ 更少像素被降档；↓ 更多断开处被收一档</td><td>renderer asset 1.5 → 阈值 0.75</td><td>未验证</td></tr>
+    <tr><td>附加光档数</td><td>硬编码 3</td><td><code>ShadingPass.hlsl:103</code></td><td>不可调；附加光不吃材质 <code>_MainLightLevel</code></td><td>3</td><td>未验证（002 没有附加光）</td></tr>
+    <tr><td>色板分箱</td><td>palette height</td><td><code>ColorCorrection.shader:33</code></td><td>固定 16³；改高度会改查表坐标</td><td>16</td><td>未验证</td></tr>
+  </table>
+
+  <p class="small">“参考视频/图”列的确定项来自任务给定的第一手实测（每期一套色板、005 岩石 0.82/-1/0.2/0.008、005 两盏边缘光、对齐环境光 1.4）。其余参数没有从视频逐像素反推，标“未验证”，不用猜测值填表。</p>
+
+  <div class="conclusion"><b>结论一句话：</b>调参前先定位它在哪一趟：G-buffer 参数（albedo/smoothness/metallic/priority）改“是什么”；着色参数（level/edge/dither/smoothness）改“怎么分档”；色板改“最后变成什么颜色”。优先级是<b>色板 &gt; 光 &gt; 分档/棱线 &gt; 抖动</b>。</div>
+</section>
+
+<section class="card" id="s9">
+  <div class="kicker">Section 9</div>
+  <h2>实测图鉴 A~L</h2>
+  <p class="lead">A~J 全部是 002 Lighting，600×400 输出（画布 120×80 ×5）；K/L 是 005 Rocks，960×640（画布 240×160 ×4）。每张条带图都是本轮新抓的，图注写了变体参数；单个变体的原图在前面的小节里。</p>
+
+  <h3>A · 色带档数 <span class="small">（球和方块同时改 <code>_MainLightLevel</code>）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_A_levels.png" alt="A 组 色带档数">
+    <figcaption><b>A 组：</b>上排 level 2/3/4，中排 6/8 + PreLUT level=4，第三排是 level=1 的退化全黑。LUT 后的可见色数被 76 色色板压到 3 色左右；PreLUT 才看得出真正的 4 档。<b>结论：</b>档数控制的是 PreLUT 的阶梯数，最终“看到几条带”由色板决定。</figcaption></figure>
+
+  <h3>B · 光滑度 <span class="small">（球 <code>_Smoothness</code>）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_B_smoothness.png" alt="B 组 光滑度">
+    <figcaption><b>B 组：</b>0.2 / 0.443 / 0.6 / 0.75 / 0.95。<b>结论：</b>光滑度越高，高光块越小越亮；两档量化让边缘始终是硬切，不会出现柔和衰减。</figcaption></figure>
+
+  <h3>C · 棱线压暗 <span class="small">（<code>_NormalEdgeThreshold</code>，方块为主）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_C_threshold.png" alt="C 组 棱线">
+    <figcaption><b>C 组：</b>1（关）/ 0.9 / 0.82 / 0.6 + <code>_EdgeLevel</code> -2 / 0 / +1。<b>结论：</b>阈值降到 0.82 以下，球/方块轮廓出现一圈暗边；<code>_EdgeLevel</code> 的符号决定压暗还是提亮，绝对值决定几档。</figcaption></figure>
+
+  <h3>D · 抖动 <span class="small">（<code>_DiffuseDitherStrength</code>=0/0.02/0.08/0.2，level=4）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_D_dither.png" alt="D 组 抖动">
+    <figcaption><b>D 组：</b>上排全图，下排球面下缘 3× 放大。<b>结论：</b>抖动只改色带边界，不改色带内部；0.2 才形成完整棋盘，0.02 基本不可见。</figcaption></figure>
+
+  <h3>E · 金属度 <span class="small">（方块 <code>_Metallic</code>=0/0.5/1）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_E_metallic.png" alt="E 组 金属">
+    <figcaption><b>E 组：</b>0 / 0.5 / 1。<b>结论：</b>金属度不是“加亮”，是把漫反射乘 <code>(1−m)</code> 并让高光/反射取 albedo；m=1 时方块几乎只剩天空反射。</figcaption></figure>
+
+  <h3>F · 环境光 <span class="small">（<code>RenderSettings.ambientIntensity</code>=1.0/1.4/2.0）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_F_ambient.png" alt="F 组 环境光">
+    <figcaption><b>F 组：</b>上排最终图，下排 GI 缓冲×2。<b>结论：</b>环境光抬高 GI，但 LUT 会把明度变化吸成色相变化（ambient=2.0 时方块变粉白、球心消失），不是线性变亮。</figcaption></figure>
+
+  <h3>G · 地面亮度 <span class="small">（地面 <code>_BaseColor</code> 灰=0.14/0.3/0.42/0.55）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_G_ground.png" alt="G 组 地面亮度">
+    <figcaption><b>G 组：</b>0.14 / 0.3 / 0.42 / 0.55。<b>结论：</b>地面太暗时受光面与影子被 LUT 吸成同色，影子“消失”；地面够亮时影子才有对比。这不是阴影贴图的问题，是色板分箱的问题。</figcaption></figure>
+
+  <h3>H · 边缘光 <span class="small">（0 盏 / 暖 / 冷 / 两盏 + 同盏旋转）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_H_rim.png" alt="H 组 边缘光">
+    <figcaption><b>H 组：</b>上排 0/暖/冷/两盏，下排同一盏的右/左/后/下四个方向。<b>结论：</b>亮边只出现在朝光那侧的外轮廓，1 个画布像素宽；旋转方向亮边沿轮廓滑动，暗侧始终没有。</figcaption></figure>
+
+  <h3>I · Outline 开关 <span class="small">（特性 <code>m_Active</code> 关/开）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_I_outline.png" alt="I 组 描边">
+    <figcaption><b>I 组：</b>关 / 开 / 5× 放大。<b>结论：</b>开=轮廓外侧 1 画布像素的恒定深灰线；关=完全消失。与棱线暗边的随光变深不是同一机制。</figcaption></figure>
+
+  <h3>J · 色板 <span class="small">（Test_0 / Test_1 / Test_2 / Test_3，同场景同参数）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_J_palette.png" alt="J 组 色板">
+    <figcaption><b>J 组：</b>46 / 64 / 76 / 124 色。<b>结论：</b>同一帧、同一材质，只换色板，球的绿、方块的红、地面的棕全换一套；色板是“每期一套”的美术方向参数，不是全局量化器。</figcaption></figure>
+
+  <h3>K · 005 岩石 <span class="small">（出厂机位 0°、Test_3、环境光 1.4；灯影开/关）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_K_rocks.png" alt="K 组 岩石">
+    <figcaption><b>K 组：</b>出厂机位 / 关平行光 / 出厂机位的 PreLUT / 灯开-关灯差异×3。<b>结论：</b>关灯后岩石只剩两盏边缘光（金/蓝）和极暗环境光，投影消失；开灯时地面右侧有真实投影。PreLUT 图证明 005 的“暗”主要来自 Test_3 色板对地面灰的吸附，不是环境光没生效。</figcaption></figure>
+
+  <h3>L · 与视频帧对照 <span class="small">（005 出厂机位 vs <code>frames/v3/004.jpg</code>）</span></h3>
+  <figure class="wide"><img src="../../images/cellshade-shader/atlas_L_video.png" alt="L 组 视频对照">
+    <figcaption><b>L 组：</b>左=本轮 005 出厂机位（Test_3、环境光 1.4，960×640），右=视频帧 004。<b>结论：</b>构图/机位不同（视频是转盘转过一定角度、带放大的机位），不能做逐像素同色率；但岩石的暖灰、边缘光的金/蓝、地面投影的方向一致。任务给定的 95.4% 同色率（地面 99.7%、投影 84.6%）是在“转盘约 10°、俯角 16°、放大 1.03”的调校机位测的，不是这张出厂机位。</figcaption></figure>
+
+  <div class="conclusion"><b>图鉴总结一句话：</b>决定“看起来像不像原作”的优先级是：<b>色板 &gt; 环境光/主光 &gt; 档数/棱线/高光 &gt; 抖动/描边</b>。换色板能一秒换风格；调 dither 只是在边界上加噪点。</div>
+</section>
+
+<section class="card" id="s10">
+  <div class="kicker">Section 10</div>
+  <h2>事实与坑</h2>
+
+  <h3>10.1 库没有文档，所有结论都得回读源码</h3>
+  <p>上游 README 只有 4 行 + Discord 链接；全库 <b>0 个 Tooltip、0 个 HelpURL</b>。这意味着“参数是干什么的”没有第二手说明，只能从 <code>.hlsl</code>、<code>.compute</code> 和场景资产反推。本页每条机制都给了 <code>文件:行</code>，就是为了让后来者能复核，而不是背结论。</p>
+
+  <h3>10.2 录制状态没有入库：002 材质、005 机位、006 距离都与仓库不同</h3>
+  <p>最典型的是 002 的三个材质。上游 GitHub 资产里，<code>DefaultRed</code>/<code>DefaultGreen</code>/<code>DefaulBlue</code> 根本<b>没有序列化</b> <code>_NormalEdgeThreshold</code>、<code>_EdgeLevel</code>、<code>_DiffuseDitherStrength</code>、<code>_RimLightColor</code>，运行时走 shader 默认值（1 / -1 / 0 / alpha 0）；本地 <code>.mat</code> 被实验写进了 0.82、5、0.65、alpha 1 等值，文件时间戳是今天。抓图工具因此每次先用 <code>mr.material</code> 写回上游有效值，再开始实验。</p>
+
+  <table>
+    <tr><th>材质（002 用途）</th><th>上游出厂有效值</th><th>本地当前资产</th><th>差异后果</th></tr>
+    <tr><td><code>DefaultRed</code>（Cube）</td><td>level 4、smoothness 0、metallic 0、threshold 1（默认）、edge -1、dither 0、rim alpha 0、base 0.802/0.541/0.541</td><td>level 3、threshold 0.82、rim alpha 1、base 同上游</td><td>本地会把方块压暗一档并在轮廓加暗边</td></tr>
+    <tr><td><code>DefaultGreen</code>（Sphere）</td><td>level 3、smoothness 0.443、metallic 0、threshold 1（默认）、edge -1、dither 0、rim alpha 0、base 0.296/0.660/0.215</td><td>level 5、smoothness 0.65、threshold 0.82、rim alpha 1</td><td>本地球更亮、更光滑、带暗边和边缘光</td></tr>
+    <tr><td><code>DefaulBlue</code>（Plane）</td><td>level 4、smoothness 0.5、threshold 1、edge -1、dither 0、rim alpha 0、base 0.142/0.101/0.101（暗棕）</td><td>base 0.42/0.40/0.47（蓝灰）、其余同上</td><td>本地地面更亮更蓝；这是场景调参，不是着色代码</td></tr>
+    <tr><td><code>Rock</code>（005）</td><td>level 4、smoothness 0.05、metallic 0.2、threshold 0.82、edge -1、dither 0.008、rim alpha 1、base 0.585/0.503/0.411</td><td>与上游一致</td><td>005 的实验可以直接用资产值</td></tr>
+  </table>
+
+  <p>本页 002 的 A~J 图用的是<b>上游出厂材质</b>（地面暗棕），不是本地蓝灰地面。如果你拿本页图去和 002 的参考视频逐像素比，地面差异会很大；那是场景材质调参，不是着色代码的差异。005 的 K/L 用资产原值 + Test_3 + 环境光 1.4，和参考帧同一套参数。</p>
+
+  <h3>10.3 版本差：43f1/14.0.8 → 62f1/14.0.12，未排除</h3>
+  <p>上游环境是 Unity 2022.3.43f1 + URP 14.0.8；本地被 Unity 自动升级到 2022.3.62f1 + URP 14.0.12（core 14.0.11）。代码能编译、能跑、能出图，但<b>没有做过逐像素的跨版本对照</b>，所以“本页图 = 原作者机器上的图”这一步未验证。已知的明显差异只有批模式环境光探针（见 10.4），其余（shader 编译、阴影 bias、HDR 格式）没有逐项排除。</p>
+
+  <h3>10.4 批模式环境光探针：SH 全零，必须手动 UpdateEnvironment + 1.4 补偿</h3>
+  <p>批模式播放时天空盒环境光探针不会自动生成，<code>unity_SHA*</code> 全零；直接抓图会得到暗面和投影近黑。必须在场景加载后连续调用 <code>DynamicGI.UpdateEnvironment()</code> 数十帧，并且亮度约为正常编辑器的 <code>1/1.4</code>。本页所有 002/005 图都在 <code>ambientIntensity *= 1.4</code> 后抓；F 组的 1.0/1.4/2.0 是“编辑器等效值”，批模式实际是 1.4/1.96/2.8。<b>这不是管线的 bug，是批模式的环境限制。</b></p>
+
+  <h3>10.5 材质污染纪律：播放中写 sharedMaterial 会写进资产</h3>
+  <p>在批模式播放中改 <code>sharedMaterial</code>，值会写进 <code>.mat</code> 资产；今天已经踩过，本地 002 材质就是这样被改的。所有实验性改动必须用 <code>mr.material</code>（运行时实例），抓完随进程销毁。渲染器特性开关（Outline/ColorCorrection）也必须抓完还原，并用 mtime 校验库资产未变。本页 12 个模块的最终一轮跑完，<code>find Assets ProjectSettings Packages -newer &lt;时间戳&gt;</code> 除 <code>Assets/Editor/</code> 外为空。</p>
+
+  <h3>10.6 `_MainLightLevel = 1` 是退化配置</h3>
+  <p><code>singleLevel = 1/(level−1)</code> 在 level=1 时是 ∞；<code>∞×0</code> 在 IEEE 里是 NaN，棱线项 <code>singleLevel × normalEdgeLevel</code> 一旦执行就会把整块压成最低档。实测 level=1 全黑，把 <code>_EdgeLevel</code> 设 0 也救不回来。要用单档平涂，最低用 level=2，或把 <code>_NormalEdgeThreshold</code> 设到大于最大 normalDiff（Normal0 的差值最大可到 2，UI 的 Range 0~1 不够，需要用 <code>Material.SetFloat</code> 写 &gt;1）。</p>
+
+  <h3>10.7 抓图色彩空间坑：ResultBuffer 是线性 HDR</h3>
+  <p>Cast Camera 的 <code>ResultBuffer</code> 是 <code>sRGB=false</code> 的 HDR 目标；ColorCorrection 采样 sRGB 色板后写回的也是<b>线性值</b>。屏幕上由主相机写 sRGB 帧缓冲时才做编码。如果抓图时直接按字节读 ResultBuffer，所有过 LUT 的图都会暗一个数量级——本轮第一版就踩了这个坑，005 地面从正确的约 (101,81,83) 变成 (33,21,22)。修正办法：读出后自己做 <code>LinearToSRGB</code>（见 <code>ShaderAtlasCapture.CaptureResult</code>）。这不是管线的 bug，是“离线读 RT”与“上屏”之间的色彩空间差。</p>
+
+  <h3>10.8 特性顺序：Priority 在 Connectivity 之后，不是之前</h3>
+  <p>资产 <code>m_RendererFeatures</code> 的序列是 BeforeRender → RenderOpaqueObject → ConnectivityMapGeneration → PriorityManagement → Shading → Combine → Outline → Debug → ColorCorrection。口头流传的“Priority 在 Connectivity 前”与源码不符：<code>PriorityManagement.compute</code> 把 <code>_ConnectivityDetailBuffer</code> 当<b>输入</b>读，必须等 ConnectivityCheck/Flood 写完才有意义；而且它的 <code>SetTargetBuffer</code> 虽然列了 ConnectivityDetail，但 compute 里声明的是只读 <code>Texture2D</code>，实际只写 UV。页面按资产序列与数据依赖写。</p>
+
+  <h3>10.9 两个代码小坑</h3>
+  <ul>
+    <li><b>applyAA 的蓝色通道写错</b>：<code>ShadingPass.hlsl:93</code> 与 <code>:222</code> 都是 <code>rimLightInfo.r &gt; 0 || rimLightInfo.g &gt; 0 || rimLightInfo.g &gt; 0</code>，第三个条件重复了 g，应该是 b。纯蓝边缘光不会关掉 AA。影响很小，但说明这段没有经过精细审查。</li>
+    <li><b>附加光档数硬编码 3</b>：<code>ShadingPass.hlsl:103</code> 的 <code>DiffuseShading(..., 3.0, ...)</code> 不吃材质的 <code>_MainLightLevel</code>；点光/聚光永远 3 档。002 没有附加光，所以平时看不出来。</li>
+  </ul>
+
+  <h3>10.10 005 出厂机位 ≠ 95.4% 对齐机位</h3>
+  <p>任务给定的 95.4% 同色率（地面 99.7%、投影 84.6%）是在“转盘约 10°、俯角 16°、放大 1.03 + 环境光补偿 1.4”的调校机位测的；本页 K/L 用的是“转盘停 0°”的出厂机位，所以 L 只能做风格对照，不能拿来做逐像素同色率。画面里岩石的暖灰、金/蓝边缘光、地面投影方向一致，但构图不同。</p>
+
+  <h3>10.11 005 的“暗”主要是色板吸附，不是 GI 没生效</h3>
+  <p>本轮 005 出厂图的 PreLUT 地面是 (78,79,77) 的中灰，和视频帧 (90,90,100) 同一量级；过 Test_3 LUT 后变成 (101,81,83) 的暖灰。也就是说环境光/主光是工作的，暗是色板把中灰吸到了暖色暗档。如果不看 PreLUT，很容易误判成“批模式 GI 又坏了”。诊断顺序应该是：先看 PreLUT/环境光缓冲，再看 LUT。</p>
+
+  <h3>10.12 未验证清单</h3>
+  <ul>
+    <li>跨版本（43f1/14.0.8 vs 62f1/14.0.12）的逐像素一致性：未验证。</li>
+    <li>参考视频里各材质的 <code>_Smoothness</code>/<code>_MainLightLevel</code>/<code>_EdgeLevel</code> 具体值：未验证（只有 005 岩石资产值与参考帧同一套）。</li>
+    <li>002 参考视频的最终色板是否为 Test_1：任务给定 002 参考图用 Test_1（64 色），但本页没有重新做整帧同色率统计；标“任务给定/未复算”。</li>
+    <li>005 的 95.4% 同色率：任务给定的实测值，本页未在同一机位复现，只做了出厂机位的风格对照。</li>
+    <li>Outline 在参考视频里是否出现：未验证（002 出厂关闭，视频里没有明显统一色描边）。</li>
+  </ul>
+
+  <div class="conclusion"><b>结论一句话：</b>这套库没有文档、录制状态没入库、本地资产被实验污染过；可用的第一手信息全在源码与缓冲里。最危险的三个坑是<b>sharedMaterial 写回资产、批模式环境探针、线性 HDR 抓图不转 sRGB</b>，本页的工具与流程都针对这三点做了防护。</div>
+</section>
+
+<section class="card" id="s11">
+  <div class="kicker">Section 11</div>
+  <h2>术语表</h2>
+
+  <table>
+    <tr><th>术语</th><th>在这套管线里的含义</th></tr>
+    <tr><td>G-buffer</td><td>对象趟写的几何/材质属性缓冲集合（Albedo / Normal0 / Normal1 / Physical / Shape / Palette / RimLight / UV）。这里的 G-buffer 不是 URP 的 GBuffer，而是 Sloane 自定义的 8 张 MRT。</td></tr>
+    <tr><td>MRT</td><td>Multiple Render Targets：一次绘制同时写多张 RT。对象趟一次写 8 张（<code>Buffers.hlsl:1-8</code> 的 COLOR0~7）。</td></tr>
+    <tr><td>SNorm / UNorm</td><td>归一化整数格式。SNorm 把 [-1,1] 映射到整数范围，所以 Normal0/Normal1 可以直接存负法线；UNorm 只存 [0,1]。读这些 RT 不能直接 <code>ReadPixels</code>，要先 Blit 到浮点 RT。</td></tr>
+    <tr><td>单位格 / UnitSize</td><td><code>orthographicSize×2/画布高</code>，002/005 都是 0.05 世界单位。相机视图平移和物体原点都吸到这张网格。</td></tr>
+    <tr><td>降采样倍率</td><td><code>m_DownSamplingScale=5</code>。G-buffer 按画布的 5 倍分辨率光栅化（600×400 / 1200×800），着色和最终输出回到画布分辨率（120×80 / 240×160）。</td></tr>
+    <tr><td>connected / closer</td><td>连通域每个方向的两位：connected=1 表示与邻居在同一个平面；closer=1 表示中心比邻居更近。合起来用于棱线、AA、Outline、边缘光门控。</td></tr>
+    <tr><td>normalDiff</td><td>ConnectivityResult.B：5×5 块内 Normal0 的最大相邻差。球面上因 2×2 quad 而呈棋盘噪点，方块棱线是干净的一条线。</td></tr>
+    <tr><td>multiStep</td><td><code>Math/Step.hlsl</code> 的均匀分档函数：把 [0,1] 映射到 N 个等距档位（0, 1/(N−1), …, 1）。</td></tr>
+    <tr><td>singleLevel</td><td><code>1/(level−1)</code>，一档的宽度。level=1 时是 ∞，是退化配置。</td></tr>
+    <tr><td>dither</td><td>对象趟按屏幕空间采样 <code>_DiffuseDitherPalette</code>，把 ±strength 的偏移加到 ndotl 上，只微移色带边界；不是全屏噪点。</td></tr>
+    <tr><td>NdotH / NoV</td><td>NdotH = 法线与半角向量点积，控制高光；NoV = 法线与视线点积，控制 GI 的 fresnel/掠射边。两者都被 <code>multiStep</code> 量化。</td></tr>
+    <tr><td>SH</td><td>Spherical Harmonics，环境光的低频表示。002/005 没有 lightmap，<code>SAMPLE_GI</code> 实际吃天空盒探针的 SH。</td></tr>
+    <tr><td>LUT / 16³</td><td>256×16 的色板图，按 (r, b) 切片 + g 行查表；输入每轴量化到 16 级，所以是 16×16×16 个离散答案。</td></tr>
+    <tr><td>每期一套色板</td><td>参考视频的每一期用一套独立烘焙的色板（002→Test_1、005→Test_3、006→Test_0），不是全项目共用一张。</td></tr>
+    <tr><td>CIEDE2000</td><td>色差公式。烘焙 compute 在归一化 Lab 空间里算最近色；本页不展开算法，只讲结果“明度主导吸附”。</td></tr>
+    <tr><td>线性 HDR / sRGB</td><td>ResultBuffer 是 <code>sRGB=false</code> 的线性 HDR；色板纹理是 sRGB，采样返回线性；最后上屏才编码。离线抓图必须自己 <code>LinearToSRGB</code>。</td></tr>
+    <tr><td>reversed-Z</td><td>D3D 的深度约定：近=1、远=0。正交相机做深度可视化时不能把 raw 当 0..1 直接插值，要先 <code>1−raw</code>。</td></tr>
+    <tr><td>边缘光门控</td><td><code>RimLightShading</code> 只在该方向“断开且中心更近”时出光，再乘 <code>saturate(dot(rimDir, normal))</code>，所以暗侧必然没有。</td></tr>
+    <tr><td>transmission</td><td><code>DiffuseShading</code> 的最后一个参数；不透明材质传 0，所以 <code>lerp(0,1,ndotl)=ndotl</code>。半透明材质才会用到。</td></tr>
+    <tr><td>MAX_RIMLIGHTS</td><td>32。<code>SloanePixelartRimlight</code> 的静态数组与 ComputeBuffer 上限；超过 32 盏会被截断。</td></tr>
+  </table>
+
+  <h3>复现方式</h3>
+  <p>每个模块是一个独立批模式进程，跑完自己 <code>EditorApplication.Exit</code>；不要带 <code>-quit</code>，不要带 <code>-nographics</code>。启动前确认没有别的 Unity 进程；跑完用 mtime 校验库资产。</p>
+  <pre>Unity.exe -batchmode -projectPath &lt;repo&gt;/external/sloane-urp ^
+  -executeMethod ShaderAtlasCapture.M01Buffers ^
+  -logFile %TEMP%/atlas-M01.log
+
+<span class="cm">// 模块入口：</span>
+M01Buffers      <span class="cm">// G-buffer 全套缓冲 + 深度 + 四趟 + 连通域掩码</span>
+M02Camera       <span class="cm">// 画布 / 单位格取整 / 相机平移对照</span>
+M03DiffuseLevels<span class="cm">// level 1/2/3/4/6/8 + PreLUT + level=1 对照</span>
+M04Dither       <span class="cm">// dither 0/0.02/0.08/0.2</span>
+M05Edge         <span class="cm">// threshold 1/0.9/0.82/0.6 + edge -2/0/+1</span>
+M06Specular     <span class="cm">// smoothness 0.2~0.95 + metallic 0/0.5/1</span>
+M07GI           <span class="cm">// ambient 1.0/1.4/2.0 + GI 缓冲</span>
+M08RimLight     <span class="cm">// 0/暖/冷/两盏 + 方向旋转</span>
+M09Outline      <span class="cm">// Outline 关/开</span>
+M10Palette      <span class="cm">// Test_0/1/2/3</span>
+M11Combine      <span class="cm">// 地面灰 0.14/0.3/0.42/0.55 + clip 演示</span>
+M12Rocks        <span class="cm">// 005 出厂机位 + 关灯 + PreLUT</span></pre>
+
+  <p class="small">页面里的所有图都在 <code>docs/images/cellshade-shader/</code>；抓图工具在 <code>external/sloane-urp/Assets/Editor/ShaderAtlasCapture.cs</code>，深度可视化在 <code>Assets/Editor/ShaderAtlasDepth.shader</code>。工具不修改库资产；每次运行先用 <code>mr.material</code> 重置 002 材质到上游有效值。</p>
+
+  <div class="conclusion"><b>结论一句话：</b>记住三张图就够了：<b>G-buffer 属性</b>决定“是什么”，<b>四趟分档</b>决定“怎么亮”，<b>16³ 色板</b>决定“最后是什么颜色”。其余机制（连通域、抖动、边缘光、描边）都是在这三张图上加条件。</div>
+</section>
+
+</main>
+<div id="zoom"><img alt=""><div class="cap"></div></div>
+<script>
+(function(){
+  var zoom=document.getElementById('zoom'), zi=zoom.querySelector('img'), zc=zoom.querySelector('.cap');
+  document.querySelectorAll('figure img').forEach(function(img){
+    img.addEventListener('click',function(){
+      zi.src=img.src; zc.textContent=img.closest('figure').querySelector('figcaption').textContent;
+      zoom.style.display='flex';
+    });
+  });
+  zoom.addEventListener('click',function(){ zoom.style.display='none'; zi.src=''; });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ zoom.style.display='none'; zi.src=''; }});
+  var links=[].slice.call(document.querySelectorAll('#toc a'));
+  var targets=links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+  function onScroll(){
+    var y=window.scrollY+120, best=0;
+    for(var i=0;i<targets.length;i++){ if(targets[i] && targets[i].offsetTop<=y) best=i; }
+    links.forEach(function(a,i){ a.classList.toggle('active',i===best); });
+  }
+  window.addEventListener('scroll',onScroll,{passive:true}); onScroll();
+})();
+</script>
+</body>
+</html>
