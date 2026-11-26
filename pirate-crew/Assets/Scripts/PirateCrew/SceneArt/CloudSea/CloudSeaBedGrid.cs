@@ -11,6 +11,9 @@ namespace PirateCrew.SceneArt.CloudSea
     /// 高度，要么扎进沙脊，要么为了不扎进去整群被顶到水面附近。查格定深让鱼群游过沙脊时
     /// 抬、游进洼地时沉——深度分层保得住，穿模从几何上排除。
     ///
+    /// 【两张格】净空用 <see cref="Build"/>（每格取最高，保守）；踩地的脚用 <see cref="BuildGround"/>
+    /// （每格取离格点最近的顶点，贴着真实沙面）。
+    ///
     /// 【单源】格里的高度全部来自 Cloud_Sea_Bed 网格本身（烘焙器读顶点），不另抄一份
     /// Blender 的高度公式——两处公式迟早漂移。
     ///
@@ -41,6 +44,46 @@ namespace PirateCrew.SceneArt.CloudSea
                 int index = iz * width + ix;
                 if (v.y > heights[index])
                     heights[index] = v.y;
+            }
+
+            return FillEmpty(heights, width);
+        }
+
+        /// <summary>
+        /// 贴地用的那张格：每个格点取**离它最近**的顶点的高度，也就是沙面在这一点实际多高。
+        /// <see cref="Build"/> 那张是「最坏情况的高度」，在斜坡上比沙面高出小半格的坡降——鱼群要的是它，
+        /// 踩地的脚要的是这一张，不然蟹和海星会悬在沙面上头。
+        /// </summary>
+        public static float[] BuildGround(IList<Vector3> points, int cells, float halfSize)
+        {
+            int width = cells + 1;
+            float cell = 2f * halfSize / cells;
+            var heights = new float[width * width];
+            var nearest = new float[heights.Length];
+            for (int i = 0; i < heights.Length; i++)
+            {
+                heights[i] = float.NegativeInfinity;
+                nearest[i] = float.PositiveInfinity;
+            }
+
+            for (int p = 0; p < points.Count; p++)
+            {
+                Vector3 v = points[p];
+                float gx = (v.x + halfSize) / cell;
+                float gz = (v.z + halfSize) / cell;
+                int ix = Mathf.RoundToInt(gx);
+                int iz = Mathf.RoundToInt(gz);
+                if (ix < 0 || ix > cells || iz < 0 || iz > cells)
+                    continue;
+                float dx = gx - ix;
+                float dz = gz - iz;
+                float distance = dx * dx + dz * dz;
+                int index = iz * width + ix;
+                if (distance < nearest[index])
+                {
+                    nearest[index] = distance;
+                    heights[index] = v.y;
+                }
             }
 
             return FillEmpty(heights, width);

@@ -14,7 +14,7 @@ namespace PirateCrew.SceneArt.CloudSea
         /// <summary>海面：清澈透明水，不写深度。</summary>
         ClearWater,
 
-        /// <summary>水下生态：卡通色带、投影、不描边。</summary>
+        /// <summary>水下生态：平面两档卡通色、投影、不描边、顶点程序形变。</summary>
         Underwater,
     }
 
@@ -42,8 +42,7 @@ namespace PirateCrew.SceneArt.CloudSea
                 return CloudSeaRoute.Seabed;
 
             if (StartsWith(objectName, CloudSeaPath.SeaBedPrefix)
-                || StartsWith(objectName, CloudSeaPath.FishSchoolPrefix)
-                || StartsWith(objectName, CloudSeaPath.CrabPrefix)
+                || StartsWith(objectName, CloudSeaPath.CreaturePrefix)
                 || StartsWith(objectName, CloudSeaPath.BubblePrefix))
             {
                 return CloudSeaRoute.Underwater;

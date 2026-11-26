@@ -16,11 +16,9 @@
                           正中心与停栖点），随机小角度。
     · Cloud_Shell_0..6       贝壳 ×7：小扇片（顶扇面 + 裙边 + 底，闭实体），
                           Cloud_Bone/Coral 交替，散在云台顶。
-    · Cloud_FishJump_0       跃水鱼 ×1：银蓝小鱼跃出水面的瞬间（前倾上仰姿态）
-                          + 3 颗水花小球，原点 = 入水点（水面 -0.4）。
-    · Cloud_Crab_0..11       海底小螃蟹 ×12：岩簇旁沙地上趴窝（橙红壳 Cloud_Coral，
-                          压扁椭球壳 + 双螯 + 双眼柄 + 每侧三条细腿，约 150 tris），
-                          原点 = 脚底，高度贴 bed_z 海床公式（import mod_sea 单源）。
+    · Cloud_FishJump_0       跃水鱼 ×1：一条银鱼（mod_creatures.bait_fish，放大到 ≈1 单位）
+                          仰头跃出水面的瞬间；Cloud_FishSplash_0 = 3 颗水花小球。
+                          原点 = 入水点（水面 -0.4）。
 
 【纪律】锚点/水位/停栖点单源取 cloudsea_common；材质只用 Cloud_* 自然物槽
 （零贴图零碰撞）；总三角面 ≤ 8k（以 preview_module 的 STAT 实测为准）；
@@ -33,7 +31,7 @@ import random
 
 import cloudsea_common as H
 import kit_common as K
-import mod_sea as SEA              # 海床高度场单源（总装里 sea 先于 life 装载）
+import mod_creatures as CR           # 跃水鱼用生物库的银鱼模型（总装里 life 不依赖 sea 的加载顺序）
 
 TAU = math.tau
 PI = math.pi
@@ -49,7 +47,6 @@ BONE = "Cloud_Bone"
 PAPER = "Cloud_Paper"
 WOOD = "Cloud_WoodDark"
 ROPE = "Cloud_Rope"
-BLUE = "Cloud_Blue"
 BUBBLE = "Cloud_Bubble"
 
 #: 停栖鸥 ×8：(x, y, 云台顶 z, 基础朝向(弧度, 0=+X), 姿态, 翼色)。
@@ -257,101 +254,24 @@ def _shell(m, rng, mat):
     m.add(v, f, mat=mat, smooth=False)
 
 
-#: 跃水鱼相对鱼群的体型保持建模时的比例（约 0.6 条群鱼）。群鱼卡通化放大后（mod_sea.FISH_SIZE）
-#: 它同步放大，免得同屏一条 1 单位的群鱼旁边跳出一条 0.27 单位的小鱼。
-FISH_JUMP_SCALE = 2.0
+#: 跃水鱼的体型：银鱼建模体长 0.62，放大到 ≈1 单位——和水下鱼群同一档卡通夸张。
+FISH_JUMP_SCALE = 1.6
 
 
-def _build_fish_jump(m):
-    """跃水鱼：银蓝小鱼（前倾上仰 40°）+ 3 颗水花小球。本地原点 = 入水点。"""
+def _build_fish_jump():
+    """跃水鱼：一条银鱼仰头 43° 跃出水面 + 3 颗水花小球（各一个对象）。本地原点 = 入水点。"""
     x, y, z, heading = FISH_JUMP
-
-    def ring(cx, rw, rh):
-        return [(cx, 0.0, rh), (cx, rw, 0.0), (cx, 0.0, -rh), (cx, -rw, 0.0)]
-
-    v = [(0.115, 0.0, 0.0)] + ring(0.035, 0.026, 0.021) \
-        + ring(-0.030, 0.020, 0.016) + [(-0.095, 0.0, 0.004),
-                                        (-0.150, 0.0, 0.030), (-0.130, 0.0, -0.006),
-                                        (-0.152, 0.0, -0.024), (0.010, 0.0, 0.020),
-                                        (-0.035, 0.0, 0.050), (-0.055, 0.0, 0.018)]
-    f = [(0, 1 + (i + 1) % 4, 1 + i) for i in range(4)]          # 吻端
-    f += [(1 + i, 1 + (i + 1) % 4, 5 + (i + 1) % 4, 5 + i) for i in range(4)]
-    f += [(9, 5 + i, 5 + (i + 1) % 4) for i in range(4)]         # 尾根
-    f += [(9, 10, 11), (9, 11, 12)]                              # 叉状尾鳍
-    f += [(13, 14, 15)]                                          # 背鳍
-    m.add(v, f, at=(0.14, 0.10, 0.30), ry=-0.75, rz=heading,
-          mat=BLUE, smooth=True, scale=(FISH_JUMP_SCALE,) * 3)
+    fish = CR.bait_fish().to_object("Cloud_FishJump_0")
+    fish.location = (x + 0.16, y + 0.05, z + 0.45)
+    fish.rotation_euler = (0.0, -0.75, heading)      # 先绕 Y 仰头，再绕 Z 转到游向
+    fish.scale = (FISH_JUMP_SCALE,) * 3
+    splash = K.Mesher()
     for dx, dy, dz, r in ((0.05, 0.16, 0.10, 0.030), (-0.08, 0.02, 0.16, 0.022),
                           (0.16, -0.04, 0.05, 0.026)):
-        m.sphere(r * 1.4, at=(dx, dy, dz), seg=4, rings=2, mat=BUBBLE, smooth=True)
-    return (x, y, z)
-
-
-# ---------------------------------------------------------------------------
-# 海底小螃蟹（岩簇旁沙地；壳压扁椭球 + 双螯双眼柄 + 每侧三腿）
-# ---------------------------------------------------------------------------
-
-#: 蟹点 = 岩簇旁的开阔沙地（原偏移里被云台压住的点已剔除）+ 中部水湾自由点。
-#: 2026-11-23：云台正下方/边缘的蟹在俯视镜头里看不见；改到默认取景可见的水带。
-CRAB_ROCK_ANCHORS = [(-2.3, -1.65), (7.35, 4.5), (-10.5, 2.35), (13.3, -4.25),
-                     (12.65, 12.1), (16.9, 3.75), (16.65, -8.45)]
-CRAB_FREE = [(5.5, -6.0), (-7.0, 6.5), (9.0, 11.4), (-14.0, -4.0),
-             (6.8, 4.8), (-4.5, 5.2), (4.0, -7.5), (-8.5, -5.5), (10.0, 2.0)]
-
-#: 2026-11-23 创始人「螃蟹呢？」：旧值 1.2 只有 ~0.2 m，24 px/m 画布上约 5 px；
-#: 放大到 2.6×（壳宽 ~0.42 m，10 px+），并交给 CloudSeaLife 做横向爬行。
-CRAB_SCALE = 3.2
-
-
-def _crab_ring(z, rx, ry):
-    """壳横截面环：8 边椭圆（压扁）。"""
-    pts = []
-    for i in range(8):
-        a = TAU * i / 8.0
-        pts.append((rx * math.cos(a), ry * math.sin(a), z))
-    return pts
-
-
-def _build_crab(m, rng):
-    """一只海底小蟹：原点 = 脚底，前进 +X，约 150 tris。橙红壳（Cloud_Coral）。"""
-    s = rng.uniform(0.9, 1.1) * CRAB_SCALE
-
-    # 壳：底极 + 两道压扁环 + 顶极（闭实体，32 tris）
-    verts = [(0.0, 0.0, 0.028)] + _crab_ring(0.036, 0.082, 0.060)         + _crab_ring(0.062, 0.076, 0.055) + [(0.0, 0.0, 0.082)]
-    faces = [(0, 1 + (i + 1) % 8, 1 + i) for i in range(8)]
-    faces += [(1 + i, 1 + (i + 1) % 8, 9 + (i + 1) % 8, 9 + i) for i in range(8)]
-    faces += [(17, 9 + i, 9 + (i + 1) % 8) for i in range(8)]
-    m.add([(x * s, y * s, z * s) for x, y, z in verts], faces, mat=CORAL, smooth=True)
-
-    # 眼柄 ×2（前缘小黑珠）
-    for side in (1, -1):
-        m.sphere(0.011 * s, at=(0.055 * s, 0.024 * side * s, 0.075 * s),
-                 seg=4, rings=2, mat=BLACK, smooth=False)
-
-    # 螯 ×2（前侧小椭球 + 指向斜前的锥尖）
-    for side in (1, -1):
-        m.sphere(0.030 * s, at=(0.075 * s, 0.058 * side * s, 0.036 * s),
-                 seg=5, rings=2, mat=CORAL, smooth=True)
-        m.add([(0.0, 0.0, 0.0), (0.0, 0.012 * side, 0.0), (-0.018, 0.0, 0.0),
-               (0.0, -0.012 * side, 0.0), (0.038 * s, 0.010 * side * s, 0.014 * s)],
-              [(0, 1, 4), (1, 2, 4), (2, 3, 4), (3, 0, 4), (3, 2, 1, 0)],
-              at=(0.095 * s, 0.058 * side * s, 0.040 * s), mat=BONE, smooth=False)
-
-    # 腿 ×6（每侧三条薄片条，向后撇）
-    for side in (1, -1):
-        for k, (lx, ang) in enumerate(((0.02, 1.35), (-0.02, 1.65), (-0.06, 1.95))):
-            m.poly_extrude([(0.0, 0.006 * s), (0.10 * s, 0.004 * s),
-                            (0.10 * s, -0.004 * s), (0.0, -0.006 * s)],
-                           0.018 * s, 0.006 * s,
-                           at=(lx * s, 0.052 * side * s, 0.0),
-                           rz=side * -ang, mat=CORAL, smooth=False)
-
-
-def _crab_anchors():
-    """锚点：岩簇旁开阔沙地 + 中部水湾自由点；返回 (x, y, z=bed+0.02) 列表。"""
-    out = list(CRAB_ROCK_ANCHORS)
-    out.extend(CRAB_FREE)
-    return [(x, y, SEA.bed_z(x, y) + 0.02) for x, y in out]
+        splash.sphere(r * 1.4, at=(dx, dy, dz), seg=4, rings=2, mat=BUBBLE, smooth=True)
+    drop = splash.to_object("Cloud_FishSplash_0")
+    drop.location = (x, y, z)
+    return [fish, drop]
 
 
 # ---------------------------------------------------------------------------
@@ -398,21 +318,7 @@ def build():
         obj.rotation_euler = (0.0, 0.0, rng.uniform(0.0, TAU))
         objects.append(obj)
 
-    # 跃水鱼 ×1（鱼身带双面尾鳍 = 开放网格；recalc 会按连通关系把鱼身翻成内朝外，
-    # 实拍体积为负 → 禁 recalc，保住建模绕序）
-    m = K.Mesher()
-    loc = _build_fish_jump(m)
-    obj = m.to_object("Cloud_FishJump_0", recalc_normals=False)
-    obj.location = loc
-    objects.append(obj)
-
-    # 海底小螃蟹 ×8（脚底贴 bed_z 海床；静置 v1，爬行动画随活物层后续加）
-    for i, (x, y, z) in enumerate(_crab_anchors()):
-        m = K.Mesher()
-        _build_crab(m, rng)
-        obj = m.to_object("Cloud_Crab_%d" % i)
-        obj.location = (x, y, z)
-        obj.rotation_euler = (0.0, 0.0, rng.uniform(0.0, TAU))
-        objects.append(obj)
+    # 跃水鱼 ×1 + 水花
+    objects.extend(_build_fish_jump())
 
     return objects

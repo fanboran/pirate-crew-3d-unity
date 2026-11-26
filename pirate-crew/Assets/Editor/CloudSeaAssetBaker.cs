@@ -37,7 +37,8 @@ namespace PirateCrew.EditorTools
     ///   · Seabed（<c>Cloud_Sea_Bed</c>）：程序沙地 + 焦散的海床 shader；
     ///   · ClearWater（<c>Cloud_Sea_Surface</c>）：清澈透明海面 shader，专用资产
     ///     <c>Cloud_WaterSurface.mat</c>；
-    ///   · Underwater（海草 / 岩石 / 珊瑚 / 沉积物 / 鱼群 / 螃蟹 / 气泡）：水下生态 shader。
+        ///   · Underwater（海草 / 岩石 / 珊瑚 / 沉积物 / 气泡 / 水下生物 Cloud_Creature_*）：水下生态 shader
+        ///     （平面两档卡通色；不描边——没有深度 / 法线通道，PostLine 的描边判据看不到它们）。
     ///   同一个源材质名被多条路线共用时（珊瑚色既是海底的珊瑚也是海鸥的喙），默认路线保留原名、
     ///   其余路线的资产名加路线后缀（<c>Cloud_Coral_Underwater</c>）。
     ///
@@ -45,9 +46,9 @@ namespace PirateCrew.EditorTools
     /// 固有色 + 路线开关」，其余参数（沙纹、焦散、水色、摆幅……）是材质资产上的手调值，重跑
     ///   不覆盖——调参在材质上改，不必改这里。
     ///
-    /// 【海床高度格】从 <c>Cloud_Sea_Bed</c> 网格顶点烘一张方格（<see cref="BedGridCells"/>）
-    ///   写进 <see cref="CloudSeaLife"/>：运行时鱼群 / 螃蟹查它贴着沙丘起伏定深
-    ///   （<see cref="CloudSeaBedGrid"/>）。
+    /// 【海床高度格】从 <c>Cloud_Sea_Bed</c> 网格顶点烘两张方格（<see cref="BedGridCells"/>）
+    ///   写进 <see cref="CloudSeaLife"/>：运行时游泳的生物查净空格贴着沙丘起伏定深，贴底的生物查
+    ///   贴地格落脚（<see cref="CloudSeaBedGrid"/>）。
     ///
     /// 【金属件与鱼色卡】<c>Cloud_Brass</c> / <c>Cloud_Gold</c>：在配方之上加金属件参数
     ///   （`_Metallic` 0.8 / `_Smoothness` 1 / 暖金边缘光）；大平面高光翻档的取舍见工厂
@@ -94,7 +95,7 @@ namespace PirateCrew.EditorTools
 
         /// <summary>
         /// 海床高度格：1 单位格距、覆盖 ±20 单位。格点取周围半格内最高的顶点，所以比沙面略高——
-        /// 活物的「不能穿线」宁可高一线。可视区里的鱼群 / 螃蟹锚点都在覆盖范围内。
+        /// 活物的「不能穿线」宁可高一线。可视区里的水下生物锚点都在覆盖范围内。
         /// </summary>
         const int BedGridCells = 40;
         const float BedGridHalfSize = 20f;
@@ -117,8 +118,9 @@ namespace PirateCrew.EditorTools
         };
 
         /// <summary>
-        /// 水下会摇曳的植物材质：开薄片双面受光 + 梢部摆幅。这些材质的网格带「离根高度比」UV
-        /// （Blender 侧 kit_common.Mesher 的逐顶点辅助量），其余水下网格没有 UV、位移恒 0。
+        /// 水下会摇曳的植物材质：开薄片双面受光 + 梢部摆幅。这些材质的网格带「离根高度比」UV（Blender 侧
+        /// kit_common.Mesher 的逐顶点辅助量）。水下生物的网格另有三套 UV 携带肢体动画数据（CloudSeaAnim.hlsl）；
+        /// 没有任何 UV 的水下网格（岩石 / 珊瑚）位移恒 0。
         /// </summary>
         static readonly HashSet<string> SwayingPlantNames = new HashSet<string>
         {
@@ -126,16 +128,19 @@ namespace PirateCrew.EditorTools
         };
 
         /// <summary>
-        /// 鱼身墨线壳的材质名（Blender 侧 mod_sea._fish 的反向外壳，挂在鱼群对象上、走水下路线）。
-        /// 壳的固有色由 <see cref="InkLineColor"/> 在这里定值，不从源材质取色。
+        /// 水下两档色的乘色（sRGB）：这是口径值、不跟手调走——受光面近原色略暖，背光面偏冷不压死，
+        /// 影区再乘 shader 的影区乘色。鳍 / 眼白 / 瞳孔这类纯平件把背光面乘色也配成受光面的值。
         /// </summary>
-        const string InkLineMaterialName = "Cloud_FishLine";
+        static readonly Color UnderwaterHighlight = new Color(1.04f, 1.02f, 0.96f, 1f);
+        static readonly Color UnderwaterShadow = new Color(0.68f, 0.74f, 0.92f, 1f);
 
         /// <summary>
-        /// 墨线壳固有色（sRGB，深靛）：隔一层水色后仍比水下沙面暗一大截——阳光区约 (43,118,131)
-        /// 对沙面 (183,201,136)，岛影区约 (22,33,72) 对 (108,114,76)。
+        /// 材质名前缀 → 水下材质的薄片 / 纯平口径（Blender 侧 style_tokens 的槽名）：
+        /// `Cloud_Fin` 鳍类薄片：双面受光（深度法线通道里写朝上法线，折缝处不出棱线）+ 纯平色；
+        /// `Cloud_Eye` / `Cloud_Ink` 眼白 / 瞳孔 / 花纹描边：纯平色。
         /// </summary>
-        static readonly Color InkLineColor = new Color(0.13f, 0.12f, 0.26f, 1f);
+        const string FinMaterialPrefix = "Cloud_Fin";
+        static readonly string[] FlatMaterialPrefixes = { "Cloud_Fin", "Cloud_Eye", "Cloud_Ink" };
 
         /// <summary>
         /// 透明件的 alpha 兜底表（源材质读不到 &lt;1 的 alpha 时按名取值；源材质显式带了
@@ -204,6 +209,8 @@ namespace PirateCrew.EditorTools
 
                 SwapMaterials(root, shaders, problems, stats);
                 EnsureCloudSeaComponents(root, problems, stats);
+                VerifyCreatureAxes(root, problems);
+                VerifyCreatureJoints(root, problems);
 
                 PrefabUtility.SaveAsPrefabAsset(root, PrefabPath, out prefabSaved);
                 Object.DestroyImmediate(root);
@@ -548,22 +555,36 @@ namespace PirateCrew.EditorTools
         }
 
         /// <summary>
-        /// 水下生态材质：固有色 = 源色；会摇曳的植物开薄片双面受光与梢部摆幅。
+        /// 水下生态材质：固有色 = 源色；两档乘色是口径值，每次重写。会摇曳的植物开薄片
+        /// 双面受光与梢部摆幅；鳍 / 眼按名走薄片 / 纯平口径（见 <see cref="FinMaterialPrefix"/>）。
         /// </summary>
         static void ConfigureUnderwater(Material mat, string sourceName, Color color, Shaders shaders)
         {
             mat.shader = shaders.Underwater;
-            // 鱼身墨线壳的固有色在这里定值：墨线是「隔水可读」设计的一部分，不跟源材质取色走。
-            if (sourceName == InkLineMaterialName)
-                color = InkLineColor;
             color.a = 1f;
             mat.SetColor("_BaseColor", color);
+            mat.SetColor("_HighlightColor", UnderwaterHighlight);
+            mat.SetColor("_ShadowColor", UnderwaterShadow);
+            mat.SetFloat("_BandCut", 0.5f);
+            mat.SetFloat("_Wrap", 0.25f);
+            mat.SetFloat("_TwoSidedLight", 0f);
+            mat.SetFloat("_SwayAmplitude", 0f);
             mat.renderQueue = -1;   // 跟 shader 标签走（Geometry）
 
             if (SwayingPlantNames.Contains(sourceName))
             {
                 mat.SetFloat("_TwoSidedLight", 1f);
                 mat.SetFloat("_SwayAmplitude", 0.10f);
+            }
+            if (sourceName.StartsWith(FinMaterialPrefix, System.StringComparison.Ordinal))
+                mat.SetFloat("_TwoSidedLight", 1f);
+            foreach (string prefix in FlatMaterialPrefixes)
+            {
+                if (sourceName.StartsWith(prefix, System.StringComparison.Ordinal))
+                {
+                    mat.SetColor("_ShadowColor", UnderwaterHighlight);
+                    break;
+                }
             }
         }
 
@@ -599,7 +620,7 @@ namespace PirateCrew.EditorTools
             if (mesh == null)
             {
                 problems.Add("找不到海床网格 " + CloudSeaPath.SeaBedObjectName
-                    + "——海床高度格没烘，鱼群 / 螃蟹会退回固定深度带（可能扎进沙丘）。");
+                    + "——海床高度格没烘，水下生物会退回固定深度带（可能扎进沙丘）。");
                 return;
             }
 
@@ -609,7 +630,161 @@ namespace PirateCrew.EditorTools
                 local[i] = toRoot.MultiplyPoint3x4(local[i]);
 
             float[] heights = CloudSeaBedGrid.Build(local, BedGridCells, BedGridHalfSize);
-            root.GetComponent<CloudSeaLife>().SetBedHeightGrid(heights, BedGridCells, BedGridHalfSize);
+            float[] ground = CloudSeaBedGrid.BuildGround(local, BedGridCells, BedGridHalfSize);
+            root.GetComponent<CloudSeaLife>().SetBedHeightGrid(heights, BedGridCells, BedGridHalfSize, ground);
+        }
+
+        /// <summary>
+        /// 水下生物的变换口径（硬门禁）：本地旋转必须是**纯偏航**、缩放必须是**等比**。
+        /// 关节矩阵按「物体空间 x = 前、y = 上、z = 侧、米」写，运行时也直接用「绕 Y 的欧拉角」给它定
+        /// 朝向——导入器一旦在对象上留下别的轴向后（比如改了 bakeAxisConversion），鱼会侧着躺、
+        /// 鳍绕着错的方向拍，而且不报错。所以在这里拦。顺带打印一行变换抽样，核对导入后的实际数值用。
+        /// </summary>
+        static void VerifyCreatureAxes(GameObject root, List<string> problems)
+        {
+            int checkedCount = 0;
+            foreach (Transform tr in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (!tr.name.StartsWith(CloudSeaPath.CreaturePrefix, System.StringComparison.Ordinal))
+                    continue;
+                checkedCount++;
+                Vector3 up = tr.localRotation * Vector3.up;
+                Vector3 scale = tr.localScale;
+                bool yawOnly = up.y > 0.999f && Mathf.Abs(up.x) < 0.05f && Mathf.Abs(up.z) < 0.05f;
+                bool uniform = Mathf.Abs(scale.x - scale.y) < 1e-3f && Mathf.Abs(scale.x - scale.z) < 1e-3f;
+                if (!yawOnly || !uniform)
+                {
+                    problems.Add("水下生物 \"" + tr.name + "\" 的变换不是「纯偏航 + 等比缩放」（欧拉角 "
+                        + tr.localEulerAngles + "，缩放 " + scale + "）——顶点着色器的肢体形变与运行时的朝向"
+                        + "都按物体空间 x 前 / y 上 / z 侧写，这样的变换会让它们作用在错的轴上。");
+                }
+                if (checkedCount == 1)
+                {
+                    MeshFilter filter = tr.GetComponent<MeshFilter>();
+                    Mesh mesh = filter != null ? filter.sharedMesh : null;
+                    MeshRenderer sample = tr.GetComponent<MeshRenderer>();
+                    string channels = mesh == null
+                        ? "无网格"
+                        : (mesh.uv.Length > 0 ? "uv0" : "") + (mesh.uv2.Length > 0 ? " uv2" : "")
+                            + (mesh.uv3.Length > 0 ? " uv3" : "");
+                    Debug.Log(LogTag + " 生物变换抽样 " + tr.name + "：欧拉角 " + tr.localEulerAngles
+                        + "，缩放 " + scale + "，位置 " + tr.localPosition + "，世界包围盒尺寸 "
+                        + (sample != null ? sample.bounds.size.ToString() : "无渲染器")
+                        + "，网格 UV 通道 " + channels + "。");
+                }
+            }
+            Debug.Log(LogTag + " 水下生物变换核对 " + checkedCount + " 个。");
+        }
+
+        /// <summary>
+        /// 水下生物骨架的硬门禁（Blender ↔ Unity 的蒙皮契约，creature_kit.py ↔ CloudSeaRig）：
+        ///   · 每只生物对象下要有命名 <c>J&lt;关节号&gt;_…</c> 的关节空物体，位置 = 米级的静止位置、无旋转缩放；
+        ///   · 网格三套 UV 齐全：uv / uv2 是（关节号, 权重），uv3.x 是蒙皮标记；每个顶点的关节号必须是这只
+        ///     生物自己的关节、权重和为 1；
+        ///   · 全场景的关节号不能有两只生物重号（缓冲按关节号寻址）；父关节（名字里的 <c>P&lt;号&gt;</c>）
+        ///     必须是同一只生物里排在它之前的关节。
+        /// 运行时按同一套读法解骨架——这里不拦，错了的表现是鱼头和身体分家、或者两只生物互相带动。
+        /// </summary>
+        static void VerifyCreatureJoints(GameObject root, List<string> problems)
+        {
+            var owners = new Dictionary<int, string>();
+            int creatures = 0, joints = 0, weighted = 0;
+            foreach (Transform tr in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (!tr.name.StartsWith(CloudSeaPath.CreaturePrefix, System.StringComparison.Ordinal))
+                    continue;
+                creatures++;
+
+                var own = new List<KeyValuePair<int, Transform>>();
+                foreach (Transform child in tr)
+                {
+                    if (!child.name.StartsWith("J", System.StringComparison.Ordinal))
+                        continue;
+                    int underscore = child.name.IndexOf('_');
+                    int index;
+                    if (underscore <= 1
+                        || !int.TryParse(child.name.Substring(1, underscore - 1), out index) || index < 0)
+                    {
+                        problems.Add("水下生物 " + tr.name + " 身下的关节空物体名字不是 J<关节号>_…：" + child.name);
+                        continue;
+                    }
+                    own.Add(new KeyValuePair<int, Transform>(index, child));
+                }
+                if (own.Count == 0)
+                {
+                    problems.Add("水下生物 " + tr.name + " 身下没有关节空物体（J<关节号>_…）——Blender 侧没给"
+                        + "它登记关节（creature_kit.bind_joints），它的骨架驱动不了。");
+                    continue;
+                }
+                own.Sort((a, b) => a.Key.CompareTo(b.Key));
+
+                var seen = new HashSet<int>();
+                foreach (KeyValuePair<int, Transform> joint in own)
+                {
+                    int index = joint.Key;
+                    Transform empty = joint.Value;
+                    string owner;
+                    if (owners.TryGetValue(index, out owner) && owner != tr.name)
+                        problems.Add("关节号 " + index + " 被 " + owner + " 和 " + tr.name + " 重号（蒙皮缓冲按关节号寻址）。");
+                    owners[index] = tr.name;
+                    seen.Add(index);
+                    joints++;
+
+                    string rest = empty.name.Substring(empty.name.IndexOf('_') + 1);
+                    if (rest.StartsWith("P", System.StringComparison.Ordinal))
+                    {
+                        int next = rest.IndexOf('_');
+                        int parent;
+                        if (next <= 1 || !int.TryParse(rest.Substring(1, next - 1), out parent) || !seen.Contains(parent))
+                            problems.Add("水下生物 " + tr.name + " 的关节 " + empty.name + " 的父关节不是同一只生物里"
+                                + "排在它之前的关节。");
+                    }
+                    if (Quaternion.Angle(empty.localRotation, Quaternion.identity) > 0.01f
+                        || (empty.localScale - Vector3.one).magnitude > 0.001f || empty.localPosition.magnitude > 64f)
+                        problems.Add("水下生物 " + tr.name + " 的关节 " + empty.name + " 的变换不是「纯平移、米级」："
+                            + "位置 " + empty.localPosition + "，欧拉角 " + empty.localEulerAngles + "，缩放 " + empty.localScale
+                            + "——Blender 导出嵌套 / 带旋转缩放的空物体会换一套单位约定。");
+                }
+
+                MeshFilter filter = tr.GetComponent<MeshFilter>();
+                Mesh mesh = filter != null ? filter.sharedMesh : null;
+                if (mesh == null)
+                    continue;
+                Vector2[] a = mesh.uv;
+                Vector2[] b = mesh.uv2;
+                Vector2[] marker = mesh.uv3;
+                if (a.Length != mesh.vertexCount || b.Length != mesh.vertexCount || marker.Length != mesh.vertexCount)
+                {
+                    problems.Add("水下生物 " + tr.name + " 的网格三套 UV 不齐（uv " + a.Length + " / uv2 "
+                        + b.Length + " / uv3 " + marker.Length + "，顶点 " + mesh.vertexCount + "）。");
+                    continue;
+                }
+                int faults = 0;
+                for (int i = 0; i < mesh.vertexCount && faults < 3; i++)
+                {
+                    string fault = null;
+                    int ia = Mathf.RoundToInt(a[i].x);
+                    int ib = Mathf.RoundToInt(b[i].x);
+                    float wa = a[i].y;
+                    float wb = b[i].y;
+                    if (marker[i].x < 0.5f)
+                        fault = "没有蒙皮标记";
+                    else if (Mathf.Abs(a[i].x - ia) > 0.01f || Mathf.Abs(b[i].x - ib) > 0.01f)
+                        fault = "关节号不是整数（" + a[i].x + ", " + b[i].x + "）——导入时 UV 精度丢了";
+                    else if (!seen.Contains(ia) || (wb > 1e-4f && !seen.Contains(ib)))
+                        fault = "引用了不属于这只生物的关节（" + ia + ", " + ib + "）";
+                    else if (wa < -1e-3f || wb < -1e-3f || Mathf.Abs(wa + wb - 1f) > 0.02f)
+                        fault = "权重和不为 1（" + wa + " + " + wb + "）";
+                    if (fault != null)
+                    {
+                        faults++;
+                        problems.Add("水下生物 " + tr.name + " 的第 " + i + " 个顶点" + fault + "。");
+                    }
+                }
+                weighted += mesh.vertexCount;
+            }
+            Debug.Log(LogTag + " 水下生物骨架核对：" + creatures + " 只、" + joints + " 个关节、" + weighted
+                + " 个带权顶点。");
         }
 
         /// <summary>

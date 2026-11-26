@@ -15,21 +15,19 @@
     · Cloud_Sea_Rocks     岩簇：8 处不规则岩块组（半埋）+ 周边碎石；前排 2 组 2-2.5m
                           岩拱/叠岩（石柱+横梁+叠石），前场读得出。
     · Cloud_Sea_Coral     珊瑚礁（主礁各组一整套桌/扇/枝/管/脑/海葵，卫星礁 1-2 株点缀，
-                          粉/紫/橙/青/骨白/原橙六色档）+ 开阔沙地上的散布海星 + 草床边贝壳。
+                          粉/紫/橙/青/骨白/原橙六色档）+ 草床边贝壳。
     · Cloud_Sea_Debris    水底细节：散布小石块、碎石滩、贝壳、鱼骨（无人造垃圾）。
-    · Cloud_FishSchool_*  鱼群（公共库锚点 + 本件新增，分布到主云台下方与两侧前场）：每群
-                          独立对象、原点 = 群中心（Unity 整体游动），按 SCHOOL_DEPTH 分层
-                          游在上/中/低水层；群内松紧各不同（紧=梭形纵列，松=云团）；
-                          24 三角面/条（椭球身 + 双面尾/背/腹鳍 + 墨线壳）。
-                          尺寸是卡通化放大的（FISH_SIZE，比例尺换算见常量注）。
     · Cloud_Bubbles_0..2      气泡柱：海床升到水面附近的成串小球，原点 = 柱底。
 
 【朝向纪律】像素着色路径是 Cull Back：海床/水面是开放薄面，绕序按 +Z 朝上建模，
   出口禁 recalc（见 kit_common.Mesher.to_object 的 recalc_normals 说明）；侧壁只修
-  轴对齐竖面。海草叶与鱼鳍直接建双面（Unity 侧不用改任何东西）。
+  轴对齐竖面。海草叶直接建双面。
+
+【鱼群与活物不在这里】鱼群 / 大鱼 / 水母 / 蟹 / 海星等活动物在 mod_creatures.py；
+本件只管海水的静止部分（海床高度场 bed_z 是活物定深与贴底的单源）。
 
 【纪律】材质只用 Cloud_* 自然物槽（零贴图零碰撞）；固定种子重跑同图；主题红线：
-  只有海水/海床/岩石/海草/珊瑚/鱼群/气泡/贝壳等自然物，无人造物。
+  只有海水/海床/岩石/海草/珊瑚/气泡/贝壳等自然物，无人造物。
   海床网格中心密、外圈疏（见 _build_bed），外圈只铺四条大带，不追高模。
 """
 
@@ -43,7 +41,7 @@ TAU = math.tau
 SEED = 20261109
 
 # ---- 水域与水位（Blender 本地系，对齐 cloudsea_common 口径）----
-#: 精细内容（海草/岩/珊瑚/鱼群/碎石）的摆放范围。
+#: 精细内容（海草/岩/珊瑚/碎石）的摆放范围。
 X0, X1 = -19.0, 19.0
 Y0, Y1 = -14.0, 14.0
 TOP = H.SEA_TOP_Z        # -0.4 水面 = 现役死亡线
@@ -87,49 +85,8 @@ ORANGE = "Cloud_CoralOrange"
 TEAL = "Cloud_CoralTeal"
 BONE = "Cloud_Bone"
 BUBBLE = "Cloud_Bubble"
-FISH_ORANGE = "Cloud_FishOrange"   # 鱼专属色卡（配背光边缘光，见 style_tokens 注）
-FISH_YELLOW = "Cloud_FishYellow"
-FISH_LINE = "Cloud_FishLine"       # 鱼身墨线壳（反向外壳；固有色由 Unity 侧烘焙器定值）
 WHITE = "Cloud_White"
 BLUE = "Cloud_Blue"
-
-#: 本件鱼群锚点（前 5 = cloudsea_common.FISH_SCHOOLS；+5 群分布到主云台两侧与前场）
-#: 2026-11-21 观感反馈：群数 8→10、前场再补两群，鱼群要「一眼看得见」。
-MOD_FISH_SCHOOLS = list(H.FISH_SCHOOLS) + [
-    (14.0, -8.5, -1.5, 2.6),     # 主云台东南（近 +X 侧）
-    (16.0, 9.0, -2.0, 2.4),      # 东南前角（front34 主看位）
-    (-6.5, 8.0, -1.4, 2.2),      # 主云台西南
-    (9.0, -12.0, -1.6, 2.4),     # 南前场
-    (-12.0, 9.5, -1.7, 2.2),     # 西北前场
-    (12.0, 12.0, -0.9, 1.5),     # 前景主礁上方
-    (18.5, 5.0, -0.9, 1.5),      # 右侧主礁上方
-]
-#: 鱼的尺寸（卡通化放大）。比例尺换算口径——角色造型总高 2.0321 世界单位 = 1.75 m，
-#: 即 1 单位 = 0.861 m。鱼要隔着水色读得出，体长在屏幕上至少 ~20 艺术像素：按相机契约的
-#: 恒定密度（CameraFraming.WorldPerPixel = 1/24）1 单位 = 24 艺术像素，所以体长取 ~1 单位；
-#: 真实比例的鱼只有 0.33–0.47 单位长，屏幕上不到 12 像素。
-#: FISH_SIZE = 2.56 ⇒ 体干 0.34·s = 0.74–1.09 单位（0.64–0.94 m），含尾 0.83–1.22 单位，
-#: 与 0.7 m 宽的螃蟹是同一档夸张。改大小只动这一个数。
-FISH_SIZE = 2.56
-FISH_SPREAD = 1.25       # 鱼变大后群的散布同比例放开，鱼与鱼的间距关系不变
-FISH_LINE_W = 0.05       # 墨线壳外推量（单位）：24 艺术像素/单位下约 1.2 像素
-FISH_BED_CLEAR = 0.45    # 鱼体下沿离沙面的净空（鱼变高后同步加高）
-FISH_TOP_Z = -0.80       # 鱼群中心上限：鱼半高约 0.22，鱼背离水面（-0.4）还有一段
-
-#: 群主色（银蓝/浅蓝/珊瑚橙）/ 游向（弧度）/ 群内松紧（0 紧=纵列 → 1 松=云团）
-#: 鱼群主色：暖色为主（CORAL/YELLOW 与青色水强对比；BLUE/WHITE 只留少量杂色个体——
-#: 首轮实拍蓝鱼与水色融为一体，创始人裁定换对比色卡）
-# 2026-11-22 浅海 σ 吸收（红通道被吃）：主色改黄/白/少量橙——黄白在青水里读得出来，
-# 橙只做点缀（近水面群）。
-SCHOOL_DOM = [FISH_YELLOW, BONE, FISH_YELLOW, FISH_ORANGE, BONE, FISH_YELLOW,
-              BONE, FISH_YELLOW, FISH_ORANGE, BONE, FISH_YELLOW, BONE]
-SCHOOL_HEAD = [0.6, 2.4, 4.2, 1.3, 5.1, 0.2, 3.6, 4.9, 2.9, 1.1, 0.9, 3.9]
-SCHOOL_TIGHT = [0.55, 0.4, 0.5, 0.8, 0.35, 0.6, 0.3, 0.75, 0.55, 0.45, 0.5, 0.45]
-
-#: 各鱼群的巡游水层（群中心的 Blender z；个体在群中心上下 ±0.3 m 内散布）：贴着水面的上层群
-#: （近水面涟漪的来源）、水层中部的中层群、贴着礁顶的低层群——水下「贴底 → 中低 → 中上」的分层。
-SCHOOL_DEPTH = [-1.15, -1.70, -1.00, -1.95, -1.80, -1.35,
-                -1.10, -1.60, -0.95, -1.85, -1.20, -1.05]
 
 #: 海草床锚点（前 6 = cloudsea_common.SEAWEED_BEDS；+4 处靠 +X/+Y 前场）
 MOD_SEAWEED_BEDS = list(H.SEAWEED_BEDS) + [
@@ -174,13 +131,6 @@ CORAL_SPOTS = [
     (10.0, 8.0, PINK), (-10.0, -6.5, TEAL), (8.0, -6.5, ORANGE),
     (-2.0, -6.0, BONE),
 ]
-
-#: 海星（x, y, 材质）——数量 8→14、四色、放大 1.6×（近景读得到五角轮廓）
-STAR_SPOTS = [(5.5, -1.5, CORAL), (-8.5, 6.0, BONE), (14.8, 12.4, PINK),
-              (17.9, -1.6, BONE), (-3.5, 12.8, ORANGE), (16.9, 13.0, BONE),
-              (18.0, 5.4, CORAL), (10.5, 13.1, BONE), (13.0, 1.2, PINK),
-              (16.8, -5.2, PURPLE), (7.2, 11.8, ORANGE), (1.8, -9.5, PINK),
-              (11.8, -11.2, TEAL), (-10.5, 12.0, ORANGE)]
 
 #: 前场碎石滩（+X / +Y 两侧透过水面读得到）
 GRAVEL_PATCHES = [(17.6, 2.0), (17.4, -10.5), (6.0, 12.6), (-6.5, 12.5),
@@ -280,6 +230,10 @@ def _orient_faces(obj):
     全被当成“底面”压成朝下；像素路径 Cull Back 一裁，海床整层消失、水下岩石与鱼
     顶面变黑块。水平面的朝向由建模绕序负责（海床/水面 +Z 朝上），这里只修侧壁。
     同位置出现 ± 成对法线的面是刻意双面薄片，跳过不校；斜面（坡/球）不动。
+
+    【前提：对象原点在形体内部】「背离原点 = 朝外」只对独体件成立。由多个独立小体组成、
+    原点在群中心的对象（mod_creatures 的鱼群）不能过这道校正——朝着群中心那一侧的面会被
+    当成「朝内的侧壁」翻掉。活动物因此不走这里，它们的每个图元都是闭合体，收工时整体重算法线。
     """
     me = obj.data
     groups = {}
@@ -785,8 +739,6 @@ def _build_coral(m, rng):
             _fan_coral(m, rng, cx + rng.uniform(-0.4, 0.4), cy + rng.uniform(-0.4, 0.4),
                        rng.choice((PINK, PURPLE, TEAL)),
                        _reef_scale(cx, cy, 1.2, 0.60))
-    for sx, sy, mat in STAR_SPOTS:              # 开阔沙地上的散布海星（贴底点缀，近景读得到五角）
-        _starfish(m, rng, sx, sy, mat)
     for bx, by, br in MOD_SEAWEED_BEDS:         # 草床边贝壳
         for _ in range(2):
             ang = rng.uniform(0.0, TAU)
@@ -835,115 +787,6 @@ def _build_debris(m, rng):
         _shell(m, rng, x, y)
     for _ in range(4):                          # 鱼骨
         _fish_bones(m, rng, rng.uniform(X0 + 2.0, X1 - 2.0), rng.uniform(Y0 + 2.0, Y1 - 2.0))
-
-
-# ---------------------------------------------------------------------------
-# 鱼群（独立对象，原点 = 群中心）
-# ---------------------------------------------------------------------------
-
-def _hull(verts, faces, width):
-    """反向外壳：顶点沿**平滑法线**（邻面法线累加）外推 width、绕序反转。
-
-    平滑法线保证外壳连续（逐面法线会在凸棱处裂开漏缝）；反转绕序后配 Cull Back 只留远侧，
-    在鱼身剪影外露出一圈。绕序沿用鱼身「外朝」口径，出口禁 recalc。
-    """
-    acc = [[0.0, 0.0, 0.0] for _ in verts]
-    for a, b, c in faces:
-        pa, pb, pc = verts[a], verts[b], verts[c]
-        ab = [pb[k] - pa[k] for k in range(3)]
-        ac = [pc[k] - pa[k] for k in range(3)]
-        n = (ab[1] * ac[2] - ab[2] * ac[1],
-             ab[2] * ac[0] - ab[0] * ac[2],
-             ab[0] * ac[1] - ab[1] * ac[0])
-        for i in (a, b, c):
-            acc[i][0] += n[0]
-            acc[i][1] += n[1]
-            acc[i][2] += n[2]
-    # 朝向按「离开形体中心」定，不赌绕序在哪个手系下算外朝：鱼身是凸体，外法线必然背向中心。
-    centre = [sum(v[k] for v in verts) / len(verts) for k in range(3)]
-    out = []
-    for v, n in zip(verts, acc):
-        length = math.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2])
-        if length < 1e-9:                      # 退化兜底：沿径向外推
-            n = [v[k] - centre[k] for k in range(3)]
-            length = math.sqrt(sum(c * c for c in n)) or 1.0
-        if sum(n[k] * (v[k] - centre[k]) for k in range(3)) < 0.0:
-            n = [-c for c in n]
-        out.append(tuple(v[k] + n[k] / length * width for k in range(3)))
-    return out, [(f[0], f[2], f[1]) for f in faces]
-
-
-def _fish(m, fx, fy, fz, heading, pitch, s, body_mat, fin_mat, line_mat):
-    """一条鱼：6 顶点椭球身（8 面）+ 双面尾鳍/背鳍/腹鳍（8 面）+ 反向墨线壳（8 面）= 24 三角面。
-    朝向本地 +X。墨线是「隔水可读」的一半：水下物不进描边后处理（海草摆动描线必抖），
-    鱼的轮廓由这圈外壳自己带。"""
-    BL, BH, BW = 0.34 * s, 0.125 * s, 0.062 * s
-    body_v = [(0.50 * BL, 0.0, 0.02 * BH),      # 吻
-              (0.06 * BL, 0.0, 0.50 * BH),      # 背
-              (0.06 * BL, 0.0, -0.44 * BH),     # 腹
-              (0.10 * BL, -0.5 * BW, -0.04 * BH),
-              (0.10 * BL, 0.5 * BW, -0.04 * BH),
-              (-0.44 * BL, 0.0, 0.0)]           # 尾根
-    body_f = [(0, 1, 3), (0, 3, 2), (0, 2, 4), (0, 4, 1),
-              (5, 1, 4), (5, 4, 2), (5, 2, 3), (5, 3, 1)]
-    m.add(body_v, body_f, at=(fx, fy, fz), rz=heading, ry=pitch, mat=body_mat)
-    fin_v = [(-0.36 * BL, 0.0, 0.0), (-0.62 * BL, 0.0, 0.34 * BH),   # 尾鳍菱形
-             (-0.48 * BL, 0.0, 0.0), (-0.62 * BL, 0.0, -0.30 * BH),
-             (0.16 * BL, 0.0, 0.42 * BH), (-0.12 * BL, 0.0, 0.30 * BH),  # 背鳍
-             (-0.02 * BL, 0.0, 0.60 * BH),
-             (0.04 * BL, 0.0, -0.42 * BH), (-0.10 * BL, 0.0, -0.30 * BH),  # 腹鳍
-             (-0.02 * BL, 0.0, -0.52 * BH)]
-    fin_f = [(0, 1, 2), (0, 2, 3), (4, 5, 6), (7, 8, 9)]
-    fin_v = fin_v + fin_v[:]                    # 真双面：独立顶点块 + 反向绕序
-    fin_f += [tuple(len(fin_v) // 2 + i for i in f[::-1]) for f in fin_f[:4]]
-    m.add(fin_v, fin_f, at=(fx, fy, fz), rz=heading, ry=pitch, mat=fin_mat)
-    hull_v, hull_f = _hull(body_v, body_f, FISH_LINE_W)
-    m.add(hull_v, hull_f, at=(fx, fy, fz), rz=heading, ry=pitch, mat=line_mat)
-
-
-def _build_school(idx, rng):
-    cx, cy, _anchor_z, spread = MOD_FISH_SCHOOLS[idx]
-    cz = SCHOOL_DEPTH[idx]                       # 巡游水层取 SCHOOL_DEPTH（锚点表里的 z 不用）
-    m = K.Mesher()
-    base_h = SCHOOL_HEAD[idx]
-    dom = SCHOOL_DOM[idx]
-    tight = SCHOOL_TIGHT[idx]                   # 0 紧=梭形纵列 → 1 松=云团
-    z_lo, z_hi = -0.30, 0.30                    # 个体中心相对群中心的 z 行程
-    placed = []
-    s_sum = 0.0
-    for _ in range(rng.randint(12, 16)):
-        s = rng.uniform(0.85, 1.25) * FISH_SIZE # 体干 0.74–1.09 单位（含尾 0.83–1.22），见 FISH_SIZE 注
-        s_sum += s
-        gap2 = (0.32 * s) ** 2                  # 同校鱼体间距 ≥ 0.32·身长（不叠鱼）
-        for _try in range(18):                  # 拒采样
-            u = rng.uniform(-1.0, 1.0) * spread * (0.75 + 0.45 * tight) * FISH_SPREAD   # 沿游向
-            v = rng.gauss(0.0, 0.24 * spread * tight * FISH_SPREAD)       # 横向散布
-            fx = math.cos(base_h) * u - math.sin(base_h) * v
-            fy = math.sin(base_h) * u + math.cos(base_h) * v
-            fz = rng.uniform(z_lo, z_hi)
-            # 海床净空必须放在带高夹**之后**：先夹带高会把礁丘顶的鱼压回沙里。
-            # 净空 = 鱼半高 + 一段（FISH_BED_CLEAR）；再夹水面帽，鱼背不出水（水面 -0.4）。
-            fz = max(fz, bed_z(cx + fx, cy + fy) + FISH_BED_CLEAR - cz)
-            fz = min(fz, FISH_TOP_Z - cz)
-            if all((fx - px) ** 2 + (fy - py) ** 2 + (fz - pz) ** 2 > gap2
-                   for px, py, pz in placed):
-                break
-        placed.append((fx, fy, fz))
-        heading = base_h + rng.gauss(0.0, 0.32)
-        pitch = max(-0.25, min(0.25, rng.gauss(0.0, 0.10)))
-        if rng.random() < 0.2:                  # 少量杂色个体
-            body = rng.choice([c for c in (BONE, FISH_YELLOW, FISH_ORANGE) if c != dom])
-        else:
-            body = dom
-        _fish(m, fx, fy, fz, heading, pitch, s,
-              body, FISH_ORANGE if body in (BONE, FISH_YELLOW) else body, FISH_LINE)
-    # 鱼身是闭合椭球、鳍是双面薄片：整体带边界，recalc 可能把鱼身翻成内朝外
-    # （实拍 6/7 号群体积为负 = 鱼身被翻）。绕序建模时已按外朝写，禁 recalc。
-    obj = m.to_object("Cloud_FishSchool_%d" % idx, recalc_normals=False)
-    obj.location = (cx, cy, cz)
-    print("[mod_sea] FishSchool_%d: %d 条 均体干 %.2f 单位 松紧 %.2f"
-          % (idx, len(placed), 0.34 * s_sum / len(placed), tight), flush=True)
-    return obj
 
 
 # ---------------------------------------------------------------------------
@@ -1001,9 +844,6 @@ def build():
     debris = K.Mesher()
     _build_debris(debris, rng)
     objects.append(debris.to_object("Cloud_Sea_Debris"))
-
-    for i in range(len(MOD_FISH_SCHOOLS)):
-        objects.append(_build_school(i, rng))
 
     for i, (bx, by) in enumerate(BUBBLE_COLUMNS):
         objects.append(_build_bubbles(i, rng, bx, by))

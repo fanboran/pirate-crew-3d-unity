@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Cloud_FishOrange
-  m_Shader: {fileID: 4800000, guid: 185f7059822c91346876354379f99015, type: 3}
+  m_Name: Cloud_Tang
+  m_Shader: {fileID: 4800000, guid: f3355f5903de4b7429ddf7124384477c, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -16,7 +16,7 @@ Material:
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
+  m_CustomRenderQueue: 2000
   stringTagMap: {}
   disabledShaderPasses: []
   m_LockedProperties: 
@@ -38,7 +38,6 @@ Material:
     m_Ints: []
     m_Floats:
     - _AAScale: 1
-    - _Bands: 3
     - _BumpScale: 1
     - _Cutoff: 0.5
     - _DitherMode: 0
@@ -50,19 +49,9 @@ Material:
     - _NormalEdgeThreshold: 1
     - _OutlinePixels: 1
     - _Priority: 1
-    - _ShadowStep: 0.5
     - _Smoothness: 0
     - _SnapToPixelGrid: 1
-    - _SwayAmplitude: 0.1
-    - _SwayFps: 0
-    - _SwaySpeed: 1.2
-    - _TwoSidedLight: 0
-    - _Wrap: 0.25
     m_Colors:
-    - _BaseColor: {r: 1, g: 0.35153258, b: 0.15592644, a: 1}
-    - _HighlightColor: {r: 1.04, g: 1.02, b: 0.96, a: 1}
-    - _IslandShadowTint: {r: 0.6399999, g: 0.76, b: 0.86, a: 1}
-    - _RimLightColor: {r: 1, g: 0.55, b: 0.25, a: 1}
-    - _ShadowColor: {r: 0.6, g: 0.7, b: 0.8, a: 1}
-    - _SwayDirection: {r: 1, g: 0.35, b: 0, a: 0}
+    - _BaseColor: {r: 0.02842604, g: 0.122138746, b: 0.7454042, a: 1}
+    - _RimLightColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []

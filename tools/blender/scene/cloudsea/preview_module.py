@@ -22,7 +22,7 @@ if HERE not in sys.path:
 
 import cloudsea_common as H  # noqa: E402
 
-MODULES = ("sea", "clouds", "sky", "life")
+MODULES = ("sea", "clouds", "sky", "life", "creatures")
 
 
 def main():

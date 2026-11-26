@@ -25,9 +25,10 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
+    - _BandCut: 0.5
     - _Bands: 3
     - _ShadowStep: 0.5
-    - _SwayAmplitude: 0.1
+    - _SwayAmplitude: 0
     - _SwayFps: 0
     - _SwaySpeed: 1.2
     - _TwoSidedLight: 0
@@ -36,6 +37,6 @@ Material:
     - _BaseColor: {r: 0.82278574, g: 0.9301109, b: 0.9559733, a: 1}
     - _HighlightColor: {r: 1.04, g: 1.02, b: 0.96, a: 1}
     - _IslandShadowTint: {r: 0.6399999, g: 0.76, b: 0.86, a: 1}
-    - _ShadowColor: {r: 0.6, g: 0.7, b: 0.8, a: 1}
+    - _ShadowColor: {r: 0.68, g: 0.74, b: 0.92, a: 1}
     - _SwayDirection: {r: 1, g: 0.35, b: 0, a: 0}
   m_BuildTextureStacks: []

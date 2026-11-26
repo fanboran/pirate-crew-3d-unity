@@ -2,8 +2,9 @@
 // CloudSeaClearWater.shader —— 云端漫步海面：空岛下方的清澈透明水（PostLine 前向透明趟）。
 //
 // 【画法】透明、不写深度、不进深度 / 法线预通道——水面自身不描边，海床与水下物从
-//   _CameraOpaqueTexture 透出来，水只做三件事：
-//   ① 岛影两档：采主光阴影图，step 硬切成「阳光水色 / 岛影水色」两块，影区略实；
+//   _CameraOpaqueTexture 透出来，水只做这几件事：
+//   ① 岛影两档：采主光阴影图，step 硬切成「阳光水色 / 岛影水色」两块；查影点按波高沿光向偏移，
+//      影子与水面的交界线随波起伏（水面的波浪不直接画，靠这条线的运动读出来）；
 //   ② 像素微折射：世界格 + 时间分格的低频噪声给出折射方向，偏移取整到艺术像素——
 //      水下画面成片缓移，不糊、不逐帧闪；
 //   ③ 阳光区的波纹亮带与碎金：噪声条带过阈值；碎金按艺术像素哈希、定帧重掷。
@@ -20,7 +21,9 @@
 // 【颜色默认值是 sRGB】ShaderLab 颜色默认值、材质里的颜色属性、Inspector 取色器同一口径：按
 //   sRGB 写，引擎上传时转线性。改默认值直接写调色板的 sRGB 数字；脚本 SetColor 不要先 .linear。
 // 【调参速查】看清海床 ↔ 调 _WaterOpacity；影子的深浅 ↔ _ShadowWaterColor / _ShadowOpacity；
-//   水面晃动的强弱 ↔ _RefractionStrength（偏移量）/ _WobbleFps（快慢）；
+//   水下画面晃动的强弱 ↔ _RefractionPixels（偏移量，艺术像素）/ _WobbleFps（快慢）；
+//   影子交界线起伏 ↔ _ShadowWaveAmplitude（幅度）/ _ShadowWaveLength（波长）/ _ShadowWaveSpeed（海床、
+//   水下生物上的影边跟着同一条波，见 CloudSeaCommon.hlsl 的 CloudSeaShadowProbe）；
 //   亮带多少 ↔ _CrestCoverage；碎金多少 ↔ _SparkleThreshold（0.88 多、0.95 少）。
 // ============================================================================
 
@@ -31,17 +34,18 @@ Shader "PirateCrew/CloudSea/CloudSeaClearWater"
         [Header(Water Tint)]
         _SunWaterColor ("阳光区水色", Color) = (0.2, 0.7, 0.72, 1)
         _ShadowWaterColor ("岛影区水色", Color) = (0.01, 0.13, 0.3, 1)
-        _WaterOpacity ("水色不透明度（越大海床越看不清）", Range(0.0, 1.0)) = 0.38
-        _ShadowOpacity ("岛影区额外加深", Range(0.0, 0.6)) = 0.22
+        _WaterOpacity ("水色不透明度（越大海床越看不清）", Range(0.0, 1.0)) = 0.01
+        _ShadowOpacity ("岛影区额外加深", Range(0.0, 0.6)) = 0.6
 
         [Header(Pixel Refraction)]
-        _RefractionStrength ("折射最大偏移（屏幕 UV；0.004 约 2 个艺术像素）", Range(0.0, 0.02)) = 0.004
+        _RefractionPixels ("折射最大偏移（艺术像素；0 = 无折射）", Range(0.0, 4.0)) = 2.2
         _WobbleCell ("折射块边长（米）", Range(0.1, 4.0)) = 0.33
         _WobbleFps ("晃动帧率（次/秒，定帧不插值）", Range(1, 30)) = 8
 
         [Header(Crest Bands)]
         [ToggleUI] _CrestEnable ("波纹亮带开关", Float) = 1
         _CrestColor ("亮带色", Color) = (0.36, 0.78, 0.79, 1)
+        _CrestOpacity ("亮带浓度", Range(0.0, 1.0)) = 0.69
         _CrestCoverage ("亮带覆盖（越大越多）", Range(0.0, 1.0)) = 0.3
         _CrestScale ("亮带尺度（格/米，越小条越宽）", Range(0.02, 1.0)) = 0.22
         _CrestSpeed ("亮带漂移（噪声格/秒）", Range(0.0, 2.0)) = 0.05
@@ -58,9 +62,16 @@ Shader "PirateCrew/CloudSea/CloudSeaClearWater"
         _WaveAmplitude ("波幅（米）", Range(0.0, 0.2)) = 0.02
         _WaveLength ("波长（米）", Range(1, 30)) = 7
         _WaveSpeed ("波速（米/秒）", Range(0, 4)) = 0.6
+        _WaveDirection ("波的行进方向（世界 XZ）", Vector) = (0.8, 0.6, 0, 0)
 
         [Header(Island Shadow)]
         _ShadowStep ("岛影切点（阴影衰减不低于该值算阳光）", Range(0.0, 1.0)) = 0.5
+        // 以下四个是海面材质上的调参面：shader 本体不读，CloudSeaWater 每帧读出后下发成全局，
+        // 水面色 / 海床 / 水下生物共用（公式在 CloudSeaCommon.hlsl 的 CloudSeaShadowProbe）。
+        _ShadowWaveAmplitude ("影子交界线起伏幅度（米；0 = 不起伏）", Range(0.0, 1.5)) = 0.8
+        _ShadowWaveLength ("影子交界线起伏波长（米）", Range(1.0, 12.0)) = 3.2
+        _ShadowWaveSpeed ("影子交界线起伏相速度（米/秒）", Range(0.0, 3.0)) = 0.8
+        _ShadowWaveFps ("影子交界线定帧帧率（0 = 连续）", Range(0, 30)) = 12
     }
 
     SubShader
@@ -84,12 +95,13 @@ Shader "PirateCrew/CloudSea/CloudSeaClearWater"
             float _WaterOpacity;
             float _ShadowOpacity;
 
-            float _RefractionStrength;
+            float _RefractionPixels;
             float _WobbleCell;
             float _WobbleFps;
 
             float _CrestEnable;
             half4 _CrestColor;
+            float _CrestOpacity;
             float _CrestCoverage;
             float _CrestScale;
             float _CrestSpeed;
@@ -104,6 +116,7 @@ Shader "PirateCrew/CloudSea/CloudSeaClearWater"
             float _WaveAmplitude;
             float _WaveLength;
             float _WaveSpeed;
+            half4 _WaveDirection;
 
             float _ShadowStep;
         CBUFFER_END
@@ -159,9 +172,9 @@ Shader "PirateCrew/CloudSea/CloudSeaClearWater"
                 // 不至于是一条死直线，不参与折射计算。
                 if (_WaveEnable > 0.5 && _WaveAmplitude > 0.0)
                 {
+                    float2 dir = normalize(_WaveDirection.xz + 1e-5);
                     float waveK = 6.2831853 / max(_WaveLength, 0.1);
-                    float phase = dot(positionWS.xz, float2(0.80, 0.60)) * waveK
-                        - _Time.y * waveK * _WaveSpeed;
+                    float phase = dot(positionWS.xz, dir) * waveK - _Time.y * waveK * _WaveSpeed;
                     positionWS.y += _WaveAmplitude * sin(phase);
                 }
 
@@ -183,17 +196,13 @@ Shader "PirateCrew/CloudSea/CloudSeaClearWater"
                 // ---- ① 岛影两档：主光阴影图硬切（1 = 阳光，0 = 岛影）----
                 // 在水面上求值：落在水面上的是云岛与飞行物的影子；水下物的影子只落在海床上
                 // （海床 shader 自己收），不会浮到水面上来。
-                float sun = CloudSeaSunMask(ws, _ShadowStep);
+                // 查点按波高偏移（公式在 CloudSeaCommon.hlsl，海床 / 水下生物共用同一个）：
+                // 影子与水面的交界线随波起伏——水面的波浪不直接画，靠这条线的运动读出来。
+                float sun = CloudSeaSunMask(CloudSeaShadowProbe(ws), _ShadowStep);
 
                 // ---- ② 像素微折射 ----
-                // 世界格内同值 + 时间分格（定帧）；两层低频噪声叠加，相邻格的偏移量相近，
-                // 折射画面是成片缓移而不是逐格乱跳。偏移取整到艺术像素，不产生亚像素抖动。
-                float timeQ = floor(_Time.y * _WobbleFps) / _WobbleFps;
-                float2 cell = floor(ws.xz / max(_WobbleCell, 0.01));
-                float2 wobble = CloudSeaNoise2(cell * 0.27 + timeQ * float2(0.22, 0.09))
-                    + CloudSeaNoise2(cell * 0.53 - timeQ * float2(0.10, 0.20) + 37.0) - 1.0;
-                float maxPixels = _RefractionStrength * _ScreenParams.y / k;   // 最大偏移（艺术像素）
-                float2 offsetPixels = round(wobble * 0.5 * maxPixels);
+                // 公式在 CloudSeaAnim.hlsl。
+                float2 offsetPixels = CloudSeaRefractOffsetEx(ws.xz, _Time.y, _RefractionPixels, _WobbleCell, _WobbleFps);
 
                 // 深度安全门：折射点的场景深度比水面还近 = 落在前景物体上，回退为不偏移。
                 float2 refractedUV = screenUV + offsetPixels * k * _ScreenSize.zw;
@@ -214,7 +223,7 @@ Shader "PirateCrew/CloudSea/CloudSeaClearWater"
                     float streak = CloudSeaNoise(
                         float2(ws.x, ws.z * 5.0) * _CrestScale + crestQ * _CrestSpeed * float2(1.0, 0.35));
                     crest = step(1.0 - _CrestCoverage, streak) * sun;
-                    color = lerp(color, lerp(sceneColor, _CrestColor.rgb, 0.5 + 0.5 * opacity), crest);
+                    color = lerp(color, lerp(sceneColor, _CrestColor.rgb, _CrestOpacity), crest);
                 }
 
                 // ---- ⑤ 碎金：按艺术像素坐标做双层哈希，时间分格重掷；只在阳光区的亮带里 ----

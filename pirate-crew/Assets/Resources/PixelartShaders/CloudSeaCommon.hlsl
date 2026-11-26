@@ -3,7 +3,8 @@
 
 // ============================================================================
 // CloudSeaCommon.hlsl —— 云端漫步海面族（ClearWater / Seabed / Underwater / Ripple）
-// 共用的函数：艺术像素取样板、正交视深、值噪声、主光方向与岛影二档。
+// 共用的函数：艺术像素取样板、正交视深、主光方向与岛影二档。
+// 哈希 / 值噪声 / 顶点形变 / 折射偏移在 CloudSeaAnim.hlsl（只依赖 Core.hlsl）。
 //
 // 【为什么要有「艺术像素取样板」】PostLine 的几何与着色跑在全分辨率，事后才降采样到艺术
 //   画布；降采样以 2×2 块为单位取色，全分辨率上画的细条纹 / 单像素点会被平均成半透明脏色。
@@ -18,12 +19,14 @@
 // ============================================================================
 
 #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+#include "CloudSeaAnim.hlsl"
 
 // rig 每帧下发的全局（与 PixelartPath.SamplingScaleId / UnitSizeId / LightDirId 同名）。
 // 全局缺失（材质预览等未接线场合）时各处都有兜底。
 float  _PixelartSamplingScale;   // 1 个艺术像素 = 几个屏幕像素
 float  _PixelartUnitSize;        // 1 个艺术像素 = 多少米（地面平面上）
 float4 _PixelartLightDirWS;      // 主光方向（世界空间，指向光源）
+float  _PixelartWaterY;          // 海面高度（世界 Y；CloudSeaWater 下发，岛影起伏的入水点用）
 
 // 本片元所属艺术像素的中心（全分辨率纹素坐标）。
 float2 CloudSeaArtPixelCentre(float2 positionCS)
@@ -51,47 +54,46 @@ float CloudSeaEyeDepth(float rawDepth)
     return lerp(_ProjectionParams.y, _ProjectionParams.z, rawDepth);
 }
 
-// 哈希与值噪声：全部是解析函数，不依赖贴图（海面族没有贴图，也就没有导入设置与采样漂移）。
-float CloudSeaHash12(float2 p)
-{
-    float3 p3 = frac(float3(p.xyx) * 0.1031);
-    p3 += dot(p3, p3.yzx + 33.33);
-    return frac((p3.x + p3.y) * p3.z);
-}
-
-float2 CloudSeaHash22(float2 p)
-{
-    float3 p3 = frac(float3(p.xyx) * float3(0.1031, 0.1030, 0.0973));
-    p3 += dot(p3, p3.yzx + 33.33);
-    return frac((p3.xx + p3.yz) * p3.zy);
-}
-
-float CloudSeaNoise(float2 p)
-{
-    float2 i = floor(p);
-    float2 f = frac(p);
-    float2 u = f * f * (3.0 - 2.0 * f);
-    return lerp(lerp(CloudSeaHash12(i), CloudSeaHash12(i + float2(1.0, 0.0)), u.x),
-                lerp(CloudSeaHash12(i + float2(0.0, 1.0)), CloudSeaHash12(i + float2(1.0, 1.0)), u.x),
-                u.y);
-}
-
-float2 CloudSeaNoise2(float2 p)
-{
-    float2 i = floor(p);
-    float2 f = frac(p);
-    float2 u = f * f * (3.0 - 2.0 * f);
-    return lerp(lerp(CloudSeaHash22(i), CloudSeaHash22(i + float2(1.0, 0.0)), u.x),
-                lerp(CloudSeaHash22(i + float2(0.0, 1.0)), CloudSeaHash22(i + float2(1.0, 1.0)), u.x),
-                u.y);
-}
-
 // 主光方向：优先 rig 下发的全局（与 PostLineToonLit 同源），未接线时回退 URP 主光。
 float3 CloudSeaLightDir(float3 fallbackDirection)
 {
     return dot(_PixelartLightDirWS.xyz, _PixelartLightDirWS.xyz) > 1e-8
         ? normalize(_PixelartLightDirWS.xyz)
         : fallbackDirection;
+}
+
+// ---------------------------------------------------------------------------
+// 岛影交界线随波起伏
+// 水面的波不直接画（水面画法已定）。光穿过起伏的水面再落到水里的东西上，岛影的边就沿波进退——
+// 水面色、海床、水下生物上的影边是**同一条**，所以三处共用下面这一个探点公式：各读各的材质
+// 就只有水色那条边在动，海床上的影边不动，会露出一条对不上的接缝。
+// 参数是全局（CloudSeaWater 从海面材质读出后每帧下发）；幅度 ≤ 0 = 不起伏。
+// ---------------------------------------------------------------------------
+
+float4 _CloudSeaShadowWave;     // x = 波数（弧度/米）, y = 角速度（弧度/秒）, z = 幅度（米）, w = 定帧帧率
+float4 _CloudSeaShadowWaveDir;  // xy = 波行进方向（世界 XZ，已归一）
+
+// 岛影查点：把世界位置沿「光来的水平方向」按该处波高推一段，结果拿去查阴影图。
+// 波峰处的点更高，影边朝光源退；波谷处前伸。幅度是夸张的（真实波高只有厘米级）。
+// 波高取在「照到这一点的光线穿入水面的地方」而不是这一点脚下——海床比水面低两三米，照到
+// 海床的光是在上风处入水的；两边取同一点，水面色与海床上的影边才是同一条波。
+// ws 必须已是艺术像素中心（取样板），否则影边会碎在亚像素上。
+float3 CloudSeaShadowProbe(float3 ws)
+{
+    if (_CloudSeaShadowWave.z <= 0.0)
+        return ws;
+    float3 toLight = CloudSeaLightDir(float3(0.0, 1.0, 0.0));
+    float2 lightXZ = toLight.xz * rsqrt(dot(toLight.xz, toLight.xz) + 1e-6);
+    float2 entry = ws.xz + lightXZ * ((_PixelartWaterY - ws.y) / max(toLight.y, 0.2));
+    float t = _CloudSeaShadowWave.w > 0.5
+        ? floor(_Time.y * _CloudSeaShadowWave.w) / _CloudSeaShadowWave.w
+        : _Time.y;
+    float phase = dot(entry, _CloudSeaShadowWaveDir.xy) * _CloudSeaShadowWave.x - t * _CloudSeaShadowWave.y
+        + (CloudSeaNoise(entry * 0.15 + 5.3) - 0.5) * 2.4;      // 波峰线被低频噪声扰动，不呆板
+    // 按 (x, y, z) 逐个分量拼回去，不要写 float3(ws.xz + 偏移, ws.y)：那样拼出来的是 (x, z, y)，
+    // 探点会跑到十几米外，查到的永远是「没被挡」。
+    float2 offset = lightXZ * (sin(phase) * _CloudSeaShadowWave.z);
+    return float3(ws.x + offset.x, ws.y, ws.z + offset.y);
 }
 
 // 岛影二档：主光阴影图硬切（1 = 阳光，0 = 岛影）。主光没开阴影时衰减恒 1，整片算阳光。

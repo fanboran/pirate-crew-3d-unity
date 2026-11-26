@@ -35,13 +35,21 @@ namespace PirateCrew.SceneArt.Tests
         }
 
         [Test]
-        public void Of_SchoolsCrabsBubbles_AreUnderwater()
+        public void Of_CreaturesAndBubbles_AreUnderwater()
         {
-            Assert.AreEqual(CloudSeaRoute.Underwater, CloudSeaMaterialRoute.Of("Cloud_FishSchool_0"));
-            Assert.AreEqual(CloudSeaRoute.Underwater, CloudSeaMaterialRoute.Of("Cloud_FishSchool_11"));
-            Assert.AreEqual(CloudSeaRoute.Underwater, CloudSeaMaterialRoute.Of("Cloud_Crab_0"));
-            Assert.AreEqual(CloudSeaRoute.Underwater, CloudSeaMaterialRoute.Of("Cloud_Crab_15"));
+            Assert.AreEqual(CloudSeaRoute.Underwater, CloudSeaMaterialRoute.Of("Cloud_Creature_Clownfish_0"));
+            Assert.AreEqual(CloudSeaRoute.Underwater, CloudSeaMaterialRoute.Of("Cloud_Creature_Sword_1"));
+            Assert.AreEqual(CloudSeaRoute.Underwater, CloudSeaMaterialRoute.Of("Cloud_Creature_Jelly_4"));
+            Assert.AreEqual(CloudSeaRoute.Underwater, CloudSeaMaterialRoute.Of("Cloud_Creature_CrabWalk_5"));
+            Assert.AreEqual(CloudSeaRoute.Underwater, CloudSeaMaterialRoute.Of("Cloud_Creature_StarGold_3"));
             Assert.AreEqual(CloudSeaRoute.Underwater, CloudSeaMaterialRoute.Of("Cloud_Bubbles_2"));
+        }
+
+        [Test]
+        public void Of_OnlyTheExactPrefixCounts()
+        {
+            // 前缀匹配从名字开头算：带前缀片段但不是开头的名字不算水下件。
+            Assert.AreEqual(CloudSeaRoute.Default, CloudSeaMaterialRoute.Of("Gull_Cloud_Creature_Sword_0"));
         }
 
         [Test]
@@ -52,7 +60,7 @@ namespace PirateCrew.SceneArt.Tests
             {
                 "Cloud_Platforms", "Cloud_Waterfall", "Cloud_Far_W", "Cloud_Far_Tower",
                 "Cloud_GullPerch_0", "Cloud_Nest_1", "Cloud_Feather_0",
-                "Cloud_Shell_0", "Cloud_FishJump_0",
+                "Cloud_Shell_0", "Cloud_FishJump_0", "Cloud_FishSplash_0",
             };
             foreach (string name in aboveWater)
                 Assert.AreEqual(CloudSeaRoute.Default, CloudSeaMaterialRoute.Of(name), name);

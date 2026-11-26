@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""云端漫步重做总装：五个分件 → 一个 FBX + 三视图成品图。
+"""云端漫步重做总装：五个分件（海水 / 云台 / 远景云 / 自然小品 / 活动生物）→ 一个 FBX + 三视图成品图。
 
 用法（仓库根）：
     B="F:/SteamLibrary/steamapps/common/Blender/blender.exe"
@@ -17,9 +17,10 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import cloudsea_common as H  # noqa: E402
+import creature_kit as CK    # noqa: E402
 import style_tokens as ST    # noqa: E402
 
-MODULES = ("sea", "clouds", "sky", "life")
+MODULES = ("sea", "clouds", "sky", "life", "creatures")
 
 
 def main():
@@ -32,6 +33,7 @@ def main():
 
     H.reset()
     objects = []
+    joints = []
     for name in MODULES:
         mod = importlib.import_module("mod_" + name)
         built = mod.build()
@@ -39,11 +41,17 @@ def main():
             built = [built]
         objects.extend(built)
         print("MODULE %-10s objects=%d" % (name, len(built)), flush=True)
+        if name == "creatures":
+            # 水下生物的关节：全场景统一编号、落成空物体（随 FBX 进 Unity），跟生物一起导出。
+            empties, joint_count = CK.bind_joints(built)
+            joints += empties
+            print("JOINTS creatures joints=%d" % joint_count, flush=True)
 
     H.stats(objects)
     os.makedirs(H.FBX_DIR, exist_ok=True)
     fbx = os.path.join(H.FBX_DIR, "CloudWalk.fbx")
-    ST.export_fbx(objects, fbx)
+    # 轴向转换烘进顶点：水下生物的物体空间必须是 x 前 / y 上 / z 侧（蒙皮矩阵按它写）。
+    ST.export_fbx(objects + joints, fbx, bake_space_transform=True)
     print("FBX %s" % fbx, flush=True)
 
     if not args.no_render:

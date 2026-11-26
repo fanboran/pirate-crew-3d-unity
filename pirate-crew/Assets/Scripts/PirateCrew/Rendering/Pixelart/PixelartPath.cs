@@ -251,6 +251,12 @@ namespace PirateCrew.Rendering.Pixelart
         /// </summary>
         public static readonly int OutlineSimpleId = Shader.PropertyToID("_PixelartOutlineSimple");
 
+        /// <summary>
+        /// 水面的世界高度：云海家族的岛影探点沿光线把查点推到光线入水的那一点时用
+        /// （<c>CloudSeaCommon.hlsl</c>），由 <c>CloudSeaWater</c> 下发。
+        /// </summary>
+        public static readonly int WaterYId = Shader.PropertyToID("_PixelartWaterY");
+
         // ==================== 双风格切换（见 docs/技术/渲染/管线/双风格切换.md） ====================
 
         /// <summary>屏后描边线（PostLine）渲染器资产的固定名。装配器按此名创建，rig 运行时按名解析索引。</summary>

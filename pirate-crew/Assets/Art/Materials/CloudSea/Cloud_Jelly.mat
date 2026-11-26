@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Cloud_FishLine
+  m_Name: Cloud_Jelly
   m_Shader: {fileID: 4800000, guid: 185f7059822c91346876354379f99015, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -25,17 +25,17 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _Bands: 3
+    - _BandCut: 0.5
     - _ShadowStep: 0.5
-    - _SwayAmplitude: 0.1
+    - _SwayAmplitude: 0
     - _SwayFps: 0
     - _SwaySpeed: 1.2
     - _TwoSidedLight: 0
     - _Wrap: 0.25
     m_Colors:
-    - _BaseColor: {r: 0.13, g: 0.12, b: 0.26, a: 1}
+    - _BaseColor: {r: 1, g: 0.346704, b: 0.56471145, a: 1}
     - _HighlightColor: {r: 1.04, g: 1.02, b: 0.96, a: 1}
-    - _IslandShadowTint: {r: 0.6399999, g: 0.76, b: 0.86, a: 1}
-    - _ShadowColor: {r: 0.6, g: 0.7, b: 0.8, a: 1}
+    - _IslandShadowTint: {r: 0.7, g: 0.78, b: 0.95, a: 1}
+    - _ShadowColor: {r: 0.68, g: 0.74, b: 0.92, a: 1}
     - _SwayDirection: {r: 1, g: 0.35, b: 0, a: 0}
   m_BuildTextureStacks: []

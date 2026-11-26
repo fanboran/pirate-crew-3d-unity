@@ -30,13 +30,17 @@ Material:
     - _CrestFps: 6
     - _CrestScale: 0.22
     - _CrestSpeed: 0.05
-    - _RefractionStrength: 0.004
-    - _ShadowOpacity: 0.22
+    - _RefractionPixels: 2.16
+    - _ShadowOpacity: 0.6
     - _ShadowStep: 0.5
+    - _ShadowWaveAmplitude: 0
+    - _ShadowWaveFps: 12
+    - _ShadowWaveLength: 3.2
+    - _ShadowWaveSpeed: 0.8
     - _SparkleEnable: 1
     - _SparkleFps: 5
     - _SparkleThreshold: 0.955
-    - _WaterOpacity: 0.38
+    - _WaterOpacity: 0.01
     - _WaveAmplitude: 0.02
     - _WaveEnable: 1
     - _WaveLength: 7
@@ -45,7 +49,9 @@ Material:
     - _WobbleFps: 8
     m_Colors:
     - _CrestColor: {r: 0.35999998, g: 0.78, b: 0.78999996, a: 1}
+    - _CrestOpacity: 0.69
     - _ShadowWaterColor: {r: 0.01, g: 0.12999997, b: 0.29999998, a: 1}
     - _SparkleColor: {r: 1, g: 0.9559999, b: 0.6039999, a: 1}
     - _SunWaterColor: {r: 0.19999996, g: 0.7, b: 0.72, a: 1}
+    - _WaveDirection: {r: 0.8, g: 0.6, b: 0, a: 0}
   m_BuildTextureStacks: []

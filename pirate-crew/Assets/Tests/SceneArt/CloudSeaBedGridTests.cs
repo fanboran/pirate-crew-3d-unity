@@ -11,6 +11,7 @@ namespace PirateCrew.SceneArt.Tests
     /// 【覆盖】
     ///   · 平面可复原：格点落在平面高度上时，双线性查高逐点等于平面公式（鱼群贴沙的精度基线）；
     ///   · 取高不取均：同格多个顶点取最高（活物不能穿的那条线）；
+    ///   · 贴地格取离格点最近的顶点：斜坡上贴着真实沙面，净空格则保守地高出小半格的坡降；
     ///   · 没铺到的角落由邻格填满、不残留无穷大；一个顶点都没有时全 0 且不死循环；
     ///   · 方格外钳到边缘；方格外的顶点不入格。
     /// </summary>
@@ -58,6 +59,55 @@ namespace PirateCrew.SceneArt.Tests
 
             Assert.AreEqual(-1.2f, CloudSeaBedGrid.Sample(grid, Cells, Half, 0.05f, 0.05f), 1e-4f,
                 "同一格里应以最高的顶点为准——取平均会让高度线落到沙面以下");
+        }
+
+        [Test]
+        public void BuildGround_SeveralVerticesInOneCell_TakesTheNearest()
+        {
+            // 离格点近的顶点在下面、远的在上面：贴地格要的是「沙面在这一点多高」，不是最高线。
+            var points = new List<Vector3>
+            {
+                new Vector3(0.04f, -2.5f, 0.03f),
+                new Vector3(0.22f, -1.2f, 0.21f),
+            };
+            float[] ground = CloudSeaBedGrid.BuildGround(points, Cells, Half);
+
+            Assert.AreEqual(-2.5f, CloudSeaBedGrid.Sample(ground, Cells, Half, 0f, 0f), 1e-4f, "取离格点最近的顶点");
+        }
+
+        [Test]
+        public void BuildGround_OnASlope_FeetLandOnTheSand()
+        {
+            // y = 0.5x 的密网格（顶点间距 0.05，格子 0.5）：净空格取半格内最高，在格点处比沙面高出
+            // 小半格的坡降；贴地格贴着沙面。踩地的脚用后者才不会悬在斜坡上头。
+            var points = new List<Vector3>();
+            for (int ix = 0; ix <= 160; ix++)
+                for (int iz = 0; iz <= 160; iz++)
+                {
+                    float x = -Half + ix * 0.05f;
+                    float z = -Half + iz * 0.05f;
+                    points.Add(new Vector3(x, 0.5f * x, z));
+                }
+
+            float[] clearance = CloudSeaBedGrid.Build(points, Cells, Half);
+            float[] ground = CloudSeaBedGrid.BuildGround(points, Cells, Half);
+            foreach (float x in new[] { -3.1f, -1.3f, 0f, 0.7f, 2.4f })
+            {
+                float sand = 0.5f * x;
+                Assert.AreEqual(sand, CloudSeaBedGrid.Sample(ground, Cells, Half, x, 1.7f), 0.03f, "贴地格 = 沙面");
+                Assert.GreaterOrEqual(CloudSeaBedGrid.Sample(clearance, Cells, Half, x, 1.7f), sand + 0.1f,
+                    "净空格是保守的：不低于沙面，在斜坡上高出小半格的坡降");
+            }
+        }
+
+        [Test]
+        public void BuildGround_NoPoints_IsAllZero()
+        {
+            float[] ground = CloudSeaBedGrid.BuildGround(new List<Vector3>(), Cells, Half);
+
+            Assert.AreEqual((Cells + 1) * (Cells + 1), ground.Length);
+            foreach (float h in ground)
+                Assert.AreEqual(0f, h, 1e-6f);
         }
 
         [Test]

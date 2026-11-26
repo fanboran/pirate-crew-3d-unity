@@ -129,7 +129,8 @@ namespace PirateCrew.EditorTools
 
             Headless = headless;
             ApplyEnvMaterialTuning();
-            ShotsLeft = ShotCount;
+            // 序列帧模式（PC3D_CAPTURE_FRAMES > 0）：静帧只留第一张当参照，抓完转序列帧（见 Tick）。
+            ShotsLeft = SeqFrames > 0 ? 1 : ShotCount;
             ShotIndex = 0;
             Countdown = FirstShotDelayTicks;
             // 拍图关卡（环境变量 PC3D_CAPTURE_LEVEL，如 3 = 天空之岛）：存 SessionState，
@@ -329,7 +330,28 @@ namespace PirateCrew.EditorTools
 
             if (ShotsLeft <= 0)
             {
-                Finish();
+                // 序列帧模式：静帧抓完后转序列帧（首帧留 0.3 s 让镜头落定）；否则收工。
+                if (SeqFrames > 0)
+                {
+                    if (_seqIndex == 0 && _seqLeft <= 0)
+                    {
+                        _seqLeft = SeqFrames;
+                        _seqNextTime = Time.time + 0.3f;
+                    }
+                    try
+                    {
+                        TickSequence();
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogError("[BattleHudScreenshot] 序列帧抓帧失败：" + e);
+                        Finish();
+                    }
+                }
+                else
+                {
+                    Finish();
+                }
                 return;
             }
 
@@ -350,6 +372,7 @@ namespace PirateCrew.EditorTools
                 if (TryApplyProbeFraming(ShotIndex))
                 {
                     _framedShot = ShotIndex + 1;
+                    ApplyVisibleOverride();
                     Countdown = 60;   // 焦点/ortho 平滑逼近余量
                     return;
                 }
@@ -372,6 +395,7 @@ namespace PirateCrew.EditorTools
                 if (TryApplyArenaCenterFraming())
                 {
                     _framedShot = ShotIndex + 1;
+                    ApplyVisibleOverride();
                     Countdown = 60;   // 焦点/ortho 平滑逼近余量
                     return;
                 }
@@ -399,6 +423,98 @@ namespace PirateCrew.EditorTools
 
             ShotsLeft--;
             Countdown = ShotIntervalTicks;
+        }
+
+        // ---- 序列帧（给 GIF 用；环境变量每次取都重读，跨域重载不丢）----
+        // PC3D_CAPTURE_FRAMES  帧数（> 0 开启；静帧只留第一张，抓完转序列帧）
+        // PC3D_CAPTURE_FPS     采样间隔的倒数（按模拟时间排程；抓一帧的耗时下限见 TickSequence）
+        // PC3D_CAPTURE_VISIBLE 可见高度（米）；> 0 时把 rig 的每像素世界尺寸按它改写 = 拉近拍特写
+        //                       （只服务出图，Play 域销毁即复原，同探针口径）
+        // 每帧只抓世界层（不带 HUD），按艺术画布尺寸落 frame_NNNN.png；frames.txt 记每帧的模拟时间，
+        // 合成 GIF 时按真实时间戳排片，抓帧快慢不影响播放速度。
+        static int SeqFrames => EnvInt("PC3D_CAPTURE_FRAMES", 0);
+        static float SeqFps => Mathf.Max(1f, EnvFloat("PC3D_CAPTURE_FPS", 12f));
+        static float SeqVisible => EnvFloat("PC3D_CAPTURE_VISIBLE", 0f);
+
+        static int _seqLeft;
+        static int _seqIndex;
+        static float _seqNextTime;
+        static Texture2D _seqTex;
+        static RenderTexture _rtSeq;
+        static readonly System.Text.StringBuilder _seqLog = new System.Text.StringBuilder();
+
+        static int EnvInt(string name, int fallback)
+        {
+            return System.Environment.GetEnvironmentVariable(name) is string raw && int.TryParse(raw, out int v)
+                ? v
+                : fallback;
+        }
+
+        static float EnvFloat(string name, float fallback)
+        {
+            return System.Environment.GetEnvironmentVariable(name) is string raw && float.TryParse(raw, out float v)
+                ? v
+                : fallback;
+        }
+
+        /// <summary>可见高度覆写：按「可见米数 × pixelScale ÷ 1080」改写 rig 的每像素世界尺寸，相机正交由它反推。</summary>
+        static void ApplyVisibleOverride()
+        {
+            if (SeqVisible <= 0f)
+                return;
+            var rig = Object.FindFirstObjectByType<global::PirateCrew.Rendering.Pixelart.PixelartCameraRig>();
+            if (rig == null || !rig.deriveOrthographicSize)
+                return;
+            rig.worldPerPixel = global::PirateCrew.Rendering.Pixelart.PixelartCameraRig.WorldPerPixelFor(
+                SeqVisible, rig.pixelScale);
+            Debug.Log("[BattleHudScreenshot] 出图缩放覆写：可见 " + SeqVisible.ToString("F1") + " m（worldPerPixel "
+                + rig.worldPerPixel.ToString("F6") + "）");
+        }
+
+        static void TickSequence()
+        {
+            if (_seqLeft <= 0)
+            {
+                Finish();
+                return;
+            }
+            if (Time.time < _seqNextTime)
+                return;
+
+            Camera cam = _worldCam != null ? _worldCam : Camera.main;
+            if (cam == null || cam.targetTexture == null)
+                throw new System.InvalidOperationException("序列帧：相机/RT 未就绪（PrepareCanvas 未跑？）");
+
+            Canvas.ForceUpdateCanvases();
+            cam.Render();                       // 只抓世界层
+            // 先在 GPU 上缩到艺术画布尺寸再读回：出图 RT 是艺术画布的 pixelScale 倍锐利放大，块内像素同色，
+            // 缩回去是无损的；读回像素数少 k² 倍，抓一帧的开销才撑得起十几帧每秒的序列。
+            var seqRig = global::PirateCrew.Rendering.Pixelart.PixelartPath.ActiveRig;
+            int k = seqRig != null ? Mathf.Max(1, seqRig.pixelScale) : 2;
+            if (_rtSeq == null)
+                _rtSeq = new RenderTexture(Mathf.Max(2, _rt.width / k), Mathf.Max(2, _rt.height / k), 0,
+                    RenderTextureFormat.ARGB32);
+            Graphics.Blit(_rt, _rtSeq);
+            RenderTexture.active = _rtSeq;
+            if (_seqTex == null)
+                _seqTex = new Texture2D(_rtSeq.width, _rtSeq.height, TextureFormat.RGB24, false);
+            _seqTex.ReadPixels(new Rect(0, 0, _rtSeq.width, _rtSeq.height), 0, 0);
+            _seqTex.Apply();
+            RenderTexture.active = null;
+            File.WriteAllBytes(Path.Combine(OutputDir, "frame_" + _seqIndex.ToString("D4") + ".png"),
+                _seqTex.EncodeToPNG());
+
+            _seqLog.Append(_seqIndex).Append(' ').Append(Time.time.ToString("F4")).Append('\n');
+            _seqIndex++;
+            _seqLeft--;
+            // 按模拟时间排程；抓帧本身耗时，落后了就顺延到「现在」，不补帧（不连抓同一时刻）。
+            _seqNextTime = Mathf.Max(_seqNextTime + 1f / SeqFps, Time.time);
+            if (_seqLeft == 0)
+            {
+                File.WriteAllText(Path.Combine(OutputDir, "frames.txt"), _seqLog.ToString());
+                Debug.Log("[BattleHudScreenshot] 序列帧完成：" + _seqIndex + " 帧，最后时刻 "
+                    + Time.time.ToString("F2") + " s → " + OutputDir);
+            }
         }
 
         /// <summary>运行时取证：出战船员的根/Visual 世界缩放（身高争议现场数据）。</summary>
@@ -757,6 +873,19 @@ namespace PirateCrew.EditorTools
             SessionState.SetBool(KeyArmed, false);
             SessionState.SetBool(KeyCanvasPrepared, false);
             EditorApplication.update -= Tick;
+            if (_seqTex != null)
+            {
+                Object.DestroyImmediate(_seqTex);
+                _seqTex = null;
+            }
+            if (_rtSeq != null)
+            {
+                _rtSeq.Release();
+                _rtSeq = null;
+            }
+            _seqLeft = 0;
+            _seqIndex = 0;
+            _seqLog.Clear();
             RestoreCanvas();
             EditorApplication.isPlaying = false;
             Debug.Log("[BattleHudScreenshot] 完成，输出目录 " + OutputDir);

@@ -196,11 +196,12 @@ Shader "PirateCrew/CloudSea/CloudSeaSeabed"
                 UNITY_SETUP_INSTANCE_ID(input);
 
                 // 取样板：各层纹理与岛影都在艺术像素中心的世界位置上求值。
+                // 岛影查点按波高偏移（CloudSeaShadowProbe）：和水面色上的影边是同一条波，两边同步起伏。
                 float3 ws = CloudSeaArtPixelWorld(input.positionWS, input.positionCS.xy);
                 float2 xz = ws.xz;
                 // 全局缺失时的兜底：1 艺术像素 = 1/24 米（画布 960 宽、可视 40 米的口径）。
                 float unit = _PixelartUnitSize > 0.0 ? _PixelartUnitSize : (1.0 / 24.0);
-                float sun = CloudSeaSunMask(ws, _ShadowStep);
+                float sun = CloudSeaSunMask(CloudSeaShadowProbe(ws), _ShadowStep);
 
                 // ---- ① 沙色按高度分三档 ----
                 float height = saturate((ws.y - _LowY) / max(_HighY - _LowY, 0.01));
